@@ -1,0 +1,1461 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>교실 자리 배치 도구</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%AA%91%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper: #F5F3EE;
+    --paper-raised: #FFFFFF;
+    --ink: #23262B;
+    --ink-soft: #5B6058;
+    --board: #1E3A34;
+    --board-light: #2F5245;
+    --board-text: #EAF2EC;
+    --wood: #C98A56;
+    --wood-soft: #F1DCC3;
+    --boy-tint: #E4EEF7;
+    --girl-tint: #FBE9EE;
+    --warn: #B5482F;
+    --warn-soft: #F6DFD8;
+    --line: #DEDACD;
+    --line-strong: #C7C2B2;
+    --radius: 10px;
+    --shadow: 0 2px 8px rgba(30,58,52,0.08), 0 1px 2px rgba(30,58,52,0.06);
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+  }
+  h1,h2,h3{ font-family: 'Gowun Batang', serif; margin: 0; }
+  button{ font-family: inherit; cursor: pointer; }
+  input, textarea, select{ font-family: inherit; }
+
+  /* ---------- 헤더 / 툴바 ---------- */
+  header.toolbar{
+    background: var(--board);
+    color: var(--board-text);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    box-shadow: var(--shadow);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  header.toolbar h1{
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-right: auto;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  header.toolbar h1 .sub{
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: #B9CFC4;
+  }
+  .toolbar-actions{ display:flex; gap:8px; flex-wrap: wrap; }
+  .btn{
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    padding: 9px 16px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: transform 0.08s ease, filter 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn:active{ transform: translateY(1px); }
+  .btn-primary{ background: var(--wood); color: #2A1B0D; font-weight: 700; }
+  .btn-primary:hover{ filter: brightness(1.06); }
+  .btn-ghost{ background: rgba(255,255,255,0.08); color: var(--board-text); border-color: rgba(255,255,255,0.25); }
+  .btn-ghost:hover{ background: rgba(255,255,255,0.16); }
+  .btn-plain{ background: var(--paper-raised); color: var(--ink); border-color: var(--line-strong); }
+  .btn-plain:hover{ background: #FBFAF7; }
+  .btn-danger{ background: var(--warn-soft); color: var(--warn); border-color: #E3B7AA; }
+  .btn-small{ padding: 5px 10px; font-size: 0.78rem; border-radius: 7px; }
+
+  /* ---------- 레이아웃 ---------- */
+  .layout{
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 0;
+    min-height: calc(100vh - 60px);
+  }
+  aside.roster{
+    background: var(--paper-raised);
+    border-right: 1px solid var(--line);
+    padding: 18px;
+    overflow-y: auto;
+  }
+  section.stage{
+    padding: 24px;
+    overflow: auto;
+  }
+
+  aside.roster h2, section.stage h2{
+    font-size: 1.02rem;
+    color: var(--board);
+    margin-bottom: 10px;
+  }
+  .panel-block{
+    margin-bottom: 22px;
+    padding-bottom: 18px;
+    border-bottom: 1px dashed var(--line-strong);
+  }
+  .panel-block:last-child{ border-bottom: none; }
+
+  textarea#pasteInput{
+    width: 100%;
+    min-height: 110px;
+    resize: vertical;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+  .hint{ font-size: 0.76rem; color: var(--ink-soft); margin: 6px 0 10px; line-height: 1.4; }
+
+  .add-row{ display: flex; gap: 6px; margin-bottom: 4px; }
+  .add-row input{
+    flex: 1;
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    padding: 7px 9px;
+    font-size: 0.86rem;
+  }
+
+  .roster-count{
+    display:flex; justify-content: space-between; align-items:center;
+    font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 8px;
+  }
+  ul#studentList{ list-style: none; margin: 0; padding: 0; }
+  .student-chip{
+    display: flex; align-items: center; gap: 8px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 7px 9px;
+    margin-bottom: 6px;
+    font-size: 0.86rem;
+    cursor: grab;
+  }
+  .student-chip.seated{ opacity: 0.55; }
+  .student-chip.dragging{ opacity: 0.35; }
+  .student-chip.locked{ background: var(--wood-soft); border-color: var(--wood); }
+  #studentList.drop-hover{ outline: 2px dashed var(--wood); outline-offset: 4px; border-radius: 8px; }
+  .student-chip .name{ flex: 1; }
+  .student-chip .lock-toggle{
+    border: none; background: none; color: var(--ink-soft);
+    font-size: 0.9rem; line-height: 1; padding: 2px 4px; border-radius: 5px;
+  }
+  .student-chip .lock-toggle.on{ color: var(--wood); }
+  .student-chip .lock-toggle:hover{ background: rgba(0,0,0,0.06); }
+  .student-chip .del{
+    border: none; background: none; color: var(--ink-soft);
+    font-size: 0.95rem; line-height: 1; padding: 2px 4px; border-radius: 5px;
+  }
+  .student-chip .del:hover{ background: var(--warn-soft); color: var(--warn); }
+  .student-chip .front-toggle{ display:flex; align-items:center; gap:2px; font-size:0.72rem; color: var(--ink-soft); }
+  .student-chip .front-badge{ background: var(--wood-soft); color: var(--wood); border-radius: 5px; padding: 1px 5px; font-size: 0.7rem; line-height: 1.4; }
+  .student-chip .gender-select{
+    width: 46px; font-size: 0.72rem; border: 1px solid var(--line); border-radius: 5px;
+    padding: 2px 1px; color: var(--ink-soft); background: var(--paper);
+  }
+
+  .classroom-form{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; font-size: 0.85rem; }
+  .classroom-form label{ display: flex; flex-direction: column; gap: 4px; color: var(--ink-soft); font-size: 0.78rem; }
+  .classroom-form input[type="number"]{
+    border: 1px solid var(--line-strong); border-radius: 7px; padding: 6px 8px; font-size: 0.9rem;
+  }
+  .classroom-form .check-row{
+    grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; color: var(--ink); font-size: 0.85rem;
+  }
+  .classroom-form .apply-row{ grid-column: 1 / -1; margin-top: 4px; }
+
+  /* ---------- 무대(칠판+격자) ---------- */
+  .board-banner{
+    background: var(--board);
+    color: var(--board-text);
+    text-align: center;
+    padding: 10px;
+    border-radius: 8px;
+    font-family: 'Gowun Batang', serif;
+    font-size: 1.05rem;
+    letter-spacing: 4px;
+    margin-bottom: 22px;
+    box-shadow: var(--shadow);
+  }
+
+  .seat-grid{
+    display: inline-grid;
+    gap: 10px;
+    padding: 18px;
+    background: var(--paper-raised);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+  .seat{
+    width: 108px;
+    height: 78px;
+    border-radius: 8px;
+    border: 1px solid var(--line-strong);
+    border-top: 4px solid var(--wood);
+    background: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.86rem;
+    font-weight: 500;
+    position: relative;
+    padding: 4px;
+  }
+  .seat.empty{
+    border-top-color: var(--line-strong);
+    color: var(--ink-soft);
+    font-weight: 400;
+    font-size: 0.75rem;
+    border-style: dashed;
+  }
+  .seat.gender-boy{ background: var(--boy-tint); }
+  .seat.gender-girl{ background: var(--girl-tint); }
+  .seat.dragging{ opacity: 0.35; }
+  .seat.drop-hover{ border-color: var(--wood); box-shadow: 0 0 0 2px var(--wood) inset; }
+  .seat .pair-gap-after{ margin-right: 18px; }
+  .seat{ transition: opacity 200ms ease, transform 200ms ease; }
+  .seat.shuffle-anim{ opacity: 0; transform: scale(0.92); }
+  .seat.locked{
+    border: 2px solid var(--board);
+    box-shadow: 0 0 0 1px var(--board) inset;
+  }
+  .seat .lock-badge{
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    font-size: 0.7rem;
+    line-height: 1;
+  }
+
+  .drag-proxy{
+    position: fixed;
+    z-index: 999;
+    pointer-events: none;
+    opacity: 0.85;
+    transform: translate(-50%, -50%);
+  }
+
+  .empty-state{
+    color: var(--ink-soft);
+    font-size: 0.92rem;
+    line-height: 1.7;
+    background: var(--paper-raised);
+    border: 1px dashed var(--line-strong);
+    border-radius: 10px;
+    padding: 30px;
+    max-width: 480px;
+  }
+
+  .stage-hint{
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+    margin-bottom: 10px;
+  }
+
+  .warn-banner{
+    background: var(--warn-soft);
+    color: var(--warn);
+    border: 1px solid #E3B7AA;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    margin-bottom: 14px;
+    display: none;
+  }
+  .warn-banner.show{ display: block; }
+
+  ul.saved-layout-list{ list-style:none; margin:0; padding:0; }
+  .saved-layout-list .empty-hint{ font-size: 0.8rem; color: var(--ink-soft); }
+  .saved-layout-item{
+    display:flex; align-items:center; gap:6px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 7px 9px;
+    margin-bottom: 6px;
+    font-size: 0.84rem;
+  }
+  .saved-layout-item .info{ flex:1; min-width:0; }
+  .saved-layout-item .info .n{ display:block; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .saved-layout-item .info .d{ display:block; font-size: 0.72rem; color: var(--ink-soft); }
+  .saved-layout-item .del{
+    border: none; background: none; color: var(--ink-soft);
+    font-size: 0.95rem; line-height: 1; padding: 2px 4px; border-radius: 5px;
+  }
+  .saved-layout-item .del:hover{ background: var(--warn-soft); color: var(--warn); }
+
+  @media (max-width: 860px){
+    .layout{ grid-template-columns: 1fr; }
+    aside.roster{ border-right: none; border-bottom: 1px solid var(--line); }
+  }
+
+  .app-footer{
+    color: var(--ink-soft);
+    font-size: 0.74rem;
+    text-align: center;
+    padding: 10px 12px;
+  }
+  @media print{ .app-footer{ display: none !important; } }
+
+  /* ---------- 시점 토글 / 인쇄 전용 헤더 ---------- */
+  .print-only-header{ display: none; }
+  .seat-grid.view-student{ transform: scaleX(-1); }
+  .seat-grid.view-student .seat{ transform: scaleX(-1); }
+
+  @page { size: A4 landscape; margin: 12mm; }
+
+  @media print{
+    header.toolbar, aside.roster, .warn-banner{ display: none !important; }
+    .layout{ display: block; }
+    section.stage{ padding: 0; overflow: visible; }
+    .seat .lock-badge{ display: none; }
+    .seat.locked{ border: 1px solid var(--line-strong); box-shadow: none; }
+
+    .print-only-header{
+      display: block;
+      text-align: center;
+      margin-bottom: 8mm;
+      font-family: 'Gowun Batang', serif;
+    }
+    .print-only-header .title{ font-size: 1.4rem; font-weight: 700; }
+    .print-only-header .date{ font-size: 0.85rem; color: var(--ink-soft); margin-top: 2mm; }
+
+    .board-banner{
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      border: 2px solid var(--board);
+    }
+
+    .seat-grid{
+      width: 100%;
+      box-shadow: none;
+      padding: 4mm;
+      gap: 4mm;
+    }
+    .seat-grid[style]{ grid-template-columns: unset !important; }
+    .seat-grid{ display: grid; grid-template-columns: repeat(var(--print-cols, 6), 1fr); }
+    .seat{
+      width: auto;
+      height: auto;
+      min-height: 16mm;
+      font-size: 0.8rem;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header class="toolbar">
+  <h1>교실 자리 배치 도구 <span class="sub">Seating Planner</span></h1>
+  <div class="toolbar-actions">
+    <button class="btn btn-ghost" id="btnAutoFill">자동 채우기</button>
+    <button class="btn btn-ghost" id="btnShuffle">랜덤 배치</button>
+    <button class="btn btn-ghost" id="btnClearAll">전체 지우기</button>
+    <button class="btn btn-ghost" id="btnSaveLayout">저장</button>
+    <button class="btn btn-ghost" id="viewDirectionToggle">학생 시점으로 보기</button>
+    <button class="btn btn-ghost" id="btnPrint">인쇄</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="roster">
+    <div class="panel-block">
+      <details>
+        <summary>사용법 보기</summary>
+        <ul style="margin:8px 0 0; padding-left:18px; color:var(--ink-soft); font-size:0.85rem; line-height:1.7;">
+          <li>1) 명단을 붙여넣거나 추가하세요</li>
+          <li>2) 교실 크기를 설정하세요</li>
+          <li>3) 자동 채우기 또는 드래그로 자리를 배치하세요</li>
+          <li>4) 랜덤 배치와 자물쇠로 자리를 섞거나 고정하세요</li>
+          <li>5) 이름 붙여 저장했다가 나중에 불러오세요</li>
+          <li>6) 인쇄 버튼으로 자리표를 출력하세요</li>
+        </ul>
+      </details>
+    </div>
+
+    <div class="panel-block">
+      <h2>명단</h2>
+      <textarea id="pasteInput" placeholder="한 줄에 한 명씩 이름을 붙여넣으세요.&#10;예)&#10;김민준&#10;이서연&#10;박도윤"></textarea>
+      <div class="hint">빈 줄과 앞뒤 공백은 자동으로 정리됩니다.</div>
+      <button class="btn btn-primary" id="btnPasteAdd" style="width:100%;">명단 등록</button>
+      <button class="btn btn-ghost" id="btnSampleData" style="width:100%; margin-top:6px;">예시 명단 채우기</button>
+    </div>
+
+    <div class="panel-block">
+      <div class="add-row">
+        <input type="text" id="singleNameInput" placeholder="학생 이름 추가">
+        <button class="btn btn-plain btn-small" id="btnSingleAdd">추가</button>
+      </div>
+      <div class="roster-count">
+        <span id="studentCount">등록된 학생 0명</span>
+      </div>
+      <ul id="studentList"></ul>
+    </div>
+
+    <div class="panel-block">
+      <h2>교실 설정</h2>
+      <div class="classroom-form">
+        <label>세로 줄 수(행)
+          <input type="number" id="inputRows" min="1" max="12" value="5">
+        </label>
+        <label>가로 자리 수(열)
+          <input type="number" id="inputCols" min="1" max="12" value="6">
+        </label>
+        <div class="check-row">
+          <input type="checkbox" id="inputPaired">
+          <label for="inputPaired" style="color:inherit;">2명씩 짝 묶기(분단 사이 통로)</label>
+        </div>
+        <div class="apply-row">
+          <button class="btn btn-plain" id="btnApplyClassroom" style="width:100%;">교실 설정 적용</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-block">
+      <h2>저장된 배치</h2>
+      <ul id="savedLayoutList" class="saved-layout-list"></ul>
+    </div>
+
+    <div class="panel-block">
+      <h2>제약 조건(고급)</h2>
+      <div class="check-row" style="margin-bottom:8px;">
+        <input type="checkbox" id="inputUseConstraints">
+        <label for="inputUseConstraints" style="color:inherit;">고급 제약 조건 사용</label>
+      </div>
+      <div id="constraintsBody">
+        <div class="check-row" style="margin-bottom:10px;">
+          <input type="checkbox" id="inputShowGenderColor">
+          <label for="inputShowGenderColor" style="color:inherit;">성별 색 구분(화면/인쇄)</label>
+        </div>
+        <div class="hint" style="margin:0 0 6px;">서로 떨어뜨릴 짝</div>
+        <div class="add-row">
+          <select id="keepApartSelectA" style="flex:1; border:1px solid var(--line-strong); border-radius:7px; padding:6px 8px; font-size:0.85rem;"></select>
+          <select id="keepApartSelectB" style="flex:1; border:1px solid var(--line-strong); border-radius:7px; padding:6px 8px; font-size:0.85rem;"></select>
+          <button class="btn btn-plain btn-small" id="btnAddKeepApart">추가</button>
+        </div>
+        <ul id="keepApartList" class="saved-layout-list" style="margin-top:8px;"></ul>
+      </div>
+    </div>
+  </aside>
+
+  <section class="stage">
+    <div class="print-only-header" id="printOnlyHeader">
+      <div class="title" id="printLayoutName">제목 없는 배치</div>
+      <div class="date" id="printDate"></div>
+    </div>
+    <div class="warn-banner" id="warnBanner"></div>
+    <div class="board-banner" id="boardBanner">칠 판 / 교 탁</div>
+    <div id="stageContent"></div>
+  </section>
+</div>
+
+<footer class="app-footer">입력한 이름은 이 브라우저에만 저장되며 외부로 전송되지 않습니다.</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "seatingTool_state_v1";
+
+  var state = {
+    students: [],
+    classroom: { rows: 5, cols: 6, paired: false, frontLabel: "칠판/교탁", viewFromTeacher: true, useConstraints: false, showGenderColor: false },
+    seatMap: {},
+    constraints: { keepApart: [] },
+    savedLayouts: []
+  };
+
+  var currentLayoutName = null;
+
+  var uidCounter = 1;
+  function nextId(){ return "s" + (uidCounter++) + "_" + Date.now().toString(36); }
+
+  // ---------- 저장 / 불러오기 ----------
+  function saveState(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }catch(e){ /* 저장 실패 시 조용히 무시 */ }
+  }
+
+  function loadState(){
+    var raw;
+    try{ raw = localStorage.getItem(STORAGE_KEY); }catch(e){ raw = null; }
+    if(!raw) return;
+    try{
+      var parsed = JSON.parse(raw);
+      if(parsed && typeof parsed === "object"){
+        state.students = Array.isArray(parsed.students) ? parsed.students : [];
+        state.classroom = Object.assign(state.classroom, parsed.classroom || {});
+        state.seatMap = parsed.seatMap && typeof parsed.seatMap === "object" ? parsed.seatMap : {};
+        state.constraints = parsed.constraints && typeof parsed.constraints === "object" ? parsed.constraints : { keepApart: [] };
+        state.savedLayouts = Array.isArray(parsed.savedLayouts) ? parsed.savedLayouts : [];
+        var maxNum = 0;
+        state.students.forEach(function(s){
+          var m = /^s(\d+)_/.exec(s.id || "");
+          if(m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+        });
+        uidCounter = maxNum + 1;
+      }
+    }catch(e){ /* 손상된 데이터면 기본값 유지 */ }
+  }
+
+  // ---------- 유틸 ----------
+  function studentById(id){
+    for(var i=0;i<state.students.length;i++){
+      if(state.students[i].id === id) return state.students[i];
+    }
+    return null;
+  }
+
+  function seatedStudentIds(){
+    var ids = {};
+    Object.keys(state.seatMap).forEach(function(key){
+      var id = state.seatMap[key];
+      if(id) ids[id] = true;
+    });
+    return ids;
+  }
+
+  function totalSeats(){
+    return state.classroom.rows * state.classroom.cols;
+  }
+
+  function showWarning(msg){
+    var el = document.getElementById("warnBanner");
+    if(!msg){ el.classList.remove("show"); el.textContent = ""; return; }
+    el.textContent = msg;
+    el.classList.add("show");
+  }
+
+  // ---------- 렌더링 ----------
+  function renderAll(){
+    renderStudentList();
+    renderClassroomInputs();
+    renderStage();
+    renderSavedLayouts();
+    renderConstraintsPanel();
+    renderPrintHeader();
+    renderViewToggle();
+    saveState();
+  }
+
+  function renderConstraintsPanel(){
+    var useEl = document.getElementById("inputUseConstraints");
+    var genderEl = document.getElementById("inputShowGenderColor");
+    var bodyEl = document.getElementById("constraintsBody");
+    var selA = document.getElementById("keepApartSelectA");
+    var selB = document.getElementById("keepApartSelectB");
+    var addBtn = document.getElementById("btnAddKeepApart");
+    var listEl = document.getElementById("keepApartList");
+    if(!useEl || !bodyEl) return;
+
+    var useConstraints = !!state.classroom.useConstraints;
+    useEl.checked = useConstraints;
+    genderEl.checked = !!state.classroom.showGenderColor;
+    bodyEl.style.opacity = useConstraints ? "1" : "0.45";
+    bodyEl.querySelectorAll("input, select, button").forEach(function(el){
+      el.disabled = !useConstraints;
+    });
+
+    var prevA = selA.value, prevB = selB.value;
+    selA.innerHTML = "";
+    selB.innerHTML = "";
+    state.students.forEach(function(s){
+      var oA = document.createElement("option");
+      oA.value = s.id; oA.textContent = s.name;
+      selA.appendChild(oA);
+      var oB = document.createElement("option");
+      oB.value = s.id; oB.textContent = s.name;
+      selB.appendChild(oB);
+    });
+    if(prevA && studentById(prevA)) selA.value = prevA;
+    if(prevB && studentById(prevB)) selB.value = prevB;
+
+    addBtn.disabled = !useConstraints || state.students.length < 2;
+
+    listEl.innerHTML = "";
+    var pairs = state.constraints.keepApart || [];
+    if(!pairs.length){
+      var li0 = document.createElement("li");
+      li0.className = "empty-hint";
+      li0.textContent = "등록된 짝이 없습니다.";
+      listEl.appendChild(li0);
+    }else{
+      pairs.forEach(function(pair, idx){
+        var sA = studentById(pair[0]);
+        var sB = studentById(pair[1]);
+        var li = document.createElement("li");
+        li.className = "saved-layout-item";
+        li.setAttribute("data-keepapart-idx", idx);
+
+        var info = document.createElement("div");
+        info.className = "info";
+        var nameEl = document.createElement("span");
+        nameEl.className = "n";
+        nameEl.textContent = (sA ? sA.name : "?") + " ↔ " + (sB ? sB.name : "?");
+        info.appendChild(nameEl);
+        li.appendChild(info);
+
+        var delBtn = document.createElement("button");
+        delBtn.className = "del";
+        delBtn.setAttribute("data-del-keepapart", idx);
+        delBtn.title = "삭제";
+        delBtn.textContent = "✕";
+        li.appendChild(delBtn);
+
+        listEl.appendChild(li);
+      });
+    }
+  }
+
+  function renderPrintHeader(){
+    var nameEl = document.getElementById("printLayoutName");
+    var dateEl = document.getElementById("printDate");
+    if(!nameEl || !dateEl) return;
+    nameEl.textContent = currentLayoutName || "제목 없는 배치";
+    dateEl.textContent = new Date().toLocaleDateString("ko-KR");
+  }
+
+  function renderViewToggle(){
+    var btn = document.getElementById("viewDirectionToggle");
+    if(!btn) return;
+    var isTeacher = state.classroom.viewFromTeacher !== false;
+    btn.textContent = isTeacher ? "학생 시점으로 보기" : "교사 시점으로 보기";
+  }
+
+  function renderSavedLayouts(){
+    var listEl = document.getElementById("savedLayoutList");
+    if(!listEl) return;
+    listEl.innerHTML = "";
+    if(!state.savedLayouts.length){
+      var li0 = document.createElement("li");
+      li0.className = "empty-hint";
+      li0.textContent = "저장된 배치가 없습니다.";
+      listEl.appendChild(li0);
+      return;
+    }
+    var sorted = state.savedLayouts.slice().sort(function(a, b){
+      return new Date(b.savedAt) - new Date(a.savedAt);
+    });
+    sorted.forEach(function(layout){
+      var li = document.createElement("li");
+      li.className = "saved-layout-item";
+      li.setAttribute("data-layout-id", layout.id);
+
+      var info = document.createElement("div");
+      info.className = "info";
+      var nameEl = document.createElement("span");
+      nameEl.className = "n";
+      nameEl.textContent = layout.name;
+      var dateEl = document.createElement("span");
+      dateEl.className = "d";
+      dateEl.textContent = formatSavedAt(layout.savedAt);
+      info.appendChild(nameEl);
+      info.appendChild(dateEl);
+      li.appendChild(info);
+
+      var loadBtn = document.createElement("button");
+      loadBtn.className = "btn btn-plain btn-small";
+      loadBtn.setAttribute("data-load-layout", layout.id);
+      loadBtn.textContent = "불러오기";
+      li.appendChild(loadBtn);
+
+      var delBtn = document.createElement("button");
+      delBtn.className = "del";
+      delBtn.setAttribute("data-del-layout", layout.id);
+      delBtn.title = "삭제";
+      delBtn.textContent = "✕";
+      li.appendChild(delBtn);
+
+      listEl.appendChild(li);
+    });
+  }
+
+  function formatSavedAt(iso){
+    var d = new Date(iso);
+    if(isNaN(d.getTime())) return "";
+    var datePart = d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\./g, "-").replace(/-\s*$/, "").replace(/\s/g, "");
+    var timePart = d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+    return datePart + " " + timePart;
+  }
+
+  function renderStudentList(){
+    var listEl = document.getElementById("studentList");
+    var countEl = document.getElementById("studentCount");
+    var seated = seatedStudentIds();
+    countEl.textContent = "등록된 학생 " + state.students.length + "명";
+
+    listEl.innerHTML = "";
+    state.students.forEach(function(s){
+      var li = document.createElement("li");
+      li.className = "student-chip" + (seated[s.id] ? " seated" : "") + (s.locked ? " locked" : "");
+      li.setAttribute("data-id", s.id);
+      li.setAttribute("draggable", "true");
+
+      var nameSpan = document.createElement("span");
+      nameSpan.className = "name";
+      nameSpan.textContent = (s.locked ? "🔒 " : "") + s.name;
+      li.appendChild(nameSpan);
+
+      if(s.needFront){
+        var frontBadge = document.createElement("span");
+        frontBadge.className = "front-badge";
+        frontBadge.textContent = "앞";
+        li.appendChild(frontBadge);
+      }
+
+      var genderSelect = document.createElement("select");
+      genderSelect.className = "gender-select";
+      genderSelect.setAttribute("data-gender-select", s.id);
+      [["", "미지정"], ["남", "남"], ["여", "여"]].forEach(function(opt){
+        var o = document.createElement("option");
+        o.value = opt[0];
+        o.textContent = opt[1];
+        if((s.gender || "") === opt[0]) o.selected = true;
+        genderSelect.appendChild(o);
+      });
+      li.appendChild(genderSelect);
+
+      var frontLabel = document.createElement("label");
+      frontLabel.className = "front-toggle";
+      frontLabel.title = "앞자리 필요";
+      var frontCheck = document.createElement("input");
+      frontCheck.type = "checkbox";
+      frontCheck.setAttribute("data-front-toggle", s.id);
+      frontCheck.checked = !!s.needFront;
+      frontLabel.appendChild(frontCheck);
+      frontLabel.appendChild(document.createTextNode("앞"));
+      li.appendChild(frontLabel);
+
+      var lockBtn = document.createElement("button");
+      lockBtn.className = "lock-toggle" + (s.locked ? " on" : "");
+      lockBtn.setAttribute("data-lock-toggle", s.id);
+      lockBtn.title = s.locked ? "고정 해제" : "자리 고정";
+      lockBtn.textContent = s.locked ? "🔒" : "🔓";
+      li.appendChild(lockBtn);
+
+      var delBtn = document.createElement("button");
+      delBtn.className = "del";
+      delBtn.textContent = "✕";
+      delBtn.title = "삭제";
+      delBtn.addEventListener("click", function(){
+        removeStudent(s.id);
+      });
+      li.appendChild(delBtn);
+
+      listEl.appendChild(li);
+    });
+  }
+
+  function renderClassroomInputs(){
+    document.getElementById("inputRows").value = state.classroom.rows;
+    document.getElementById("inputCols").value = state.classroom.cols;
+    document.getElementById("inputPaired").checked = !!state.classroom.paired;
+  }
+
+  function renderStage(){
+    var stage = document.getElementById("stageContent");
+    var boardBanner = document.getElementById("boardBanner");
+    boardBanner.textContent = state.classroom.frontLabel || "칠판/교탁";
+
+    if(!state.classroom.rows || !state.classroom.cols){
+      stage.innerHTML = "";
+      var emptyDiv = document.createElement("div");
+      emptyDiv.className = "empty-state";
+      emptyDiv.textContent = "명단을 붙여넣고 교실 크기를 설정하세요.";
+      stage.appendChild(emptyDiv);
+      showWarning("");
+      return;
+    }
+
+    var rows = state.classroom.rows;
+    var cols = state.classroom.cols;
+    var paired = state.classroom.paired;
+
+    var grid = document.createElement("div");
+    grid.className = "seat-grid" + (state.classroom.viewFromTeacher === false ? " view-student" : "");
+    grid.style.gridTemplateColumns = "repeat(" + cols + ", 108px)";
+    grid.style.gridTemplateRows = "repeat(" + rows + ", 78px)";
+    grid.style.setProperty("--print-cols", cols);
+
+    for(var r=0;r<rows;r++){
+      for(var c=0;c<cols;c++){
+        var key = r + "," + c;
+        var studentId = state.seatMap[key];
+        var seatEl = document.createElement("div");
+        seatEl.setAttribute("data-seat", key);
+
+        if(paired && cols > 2 && (c % 2 === 1) && c < cols - 1){
+          seatEl.classList.add("pair-gap-after");
+        }
+
+        var student = studentId ? studentById(studentId) : null;
+        if(student){
+          var genderClass = "";
+          if(state.classroom.showGenderColor && student.gender === "남") genderClass = " gender-boy";
+          else if(state.classroom.showGenderColor && student.gender === "여") genderClass = " gender-girl";
+          seatEl.className += " seat" + (student.locked ? " locked" : "") + genderClass;
+          seatEl.textContent = student.name;
+          if(student.locked){
+            var badge = document.createElement("span");
+            badge.className = "lock-badge";
+            badge.textContent = "🔒";
+            seatEl.appendChild(badge);
+          }
+        }else{
+          seatEl.className += " seat empty";
+          seatEl.textContent = "빈자리";
+        }
+        grid.appendChild(seatEl);
+      }
+    }
+    stage.innerHTML = "";
+    if(state.students.length === 0){
+      var noStudentHint = document.createElement("div");
+      noStudentHint.className = "stage-hint";
+      noStudentHint.textContent = "명단을 붙여넣으면 이 자리에 표시됩니다.";
+      stage.appendChild(noStudentHint);
+    }
+    stage.appendChild(grid);
+
+    var unseated = state.students.length - Object.keys(seatedStudentIds()).length;
+    if(state.students.length > totalSeats()){
+      showWarning("학생 수(" + state.students.length + "명)가 자리 수(" + totalSeats() + "석)보다 많습니다. " + (state.students.length - totalSeats()) + "명이 배치되지 못했습니다.");
+    }else{
+      showWarning("");
+    }
+  }
+
+  // ---------- 학생 추가/삭제 ----------
+  function addStudentsFromPaste(text){
+    var lines = text.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(function(l){ return l.length > 0; });
+    lines.forEach(function(name){
+      state.students.push({ id: nextId(), name: name, gender: null, locked: false, needFront: false });
+    });
+    renderAll();
+  }
+
+  function addSingleStudent(name){
+    name = name.trim();
+    if(!name) return;
+    state.students.push({ id: nextId(), name: name, gender: null, locked: false, needFront: false });
+    renderAll();
+  }
+
+  function removeStudent(id){
+    state.students = state.students.filter(function(s){ return s.id !== id; });
+    Object.keys(state.seatMap).forEach(function(key){
+      if(state.seatMap[key] === id) state.seatMap[key] = null;
+    });
+    renderAll();
+  }
+
+  // ---------- 교실 설정 ----------
+  function applyClassroomSettings(rows, cols, paired){
+    rows = Math.max(1, Math.min(12, parseInt(rows, 10) || 1));
+    cols = Math.max(1, Math.min(12, parseInt(cols, 10) || 1));
+
+    var oldSeatMap = state.seatMap;
+    var newSeatMap = {};
+    for(var r=0;r<rows;r++){
+      for(var c=0;c<cols;c++){
+        var key = r + "," + c;
+        newSeatMap[key] = oldSeatMap.hasOwnProperty(key) ? oldSeatMap[key] : null;
+      }
+    }
+    state.classroom.rows = rows;
+    state.classroom.cols = cols;
+    state.classroom.paired = !!paired;
+    state.seatMap = newSeatMap;
+    renderAll();
+  }
+
+  // ---------- 자동 채우기 ----------
+  function autoFill(){
+    var rows = state.classroom.rows, cols = state.classroom.cols;
+    if(!rows || !cols) return;
+    var newSeatMap = {};
+    var idx = 0;
+    outer:
+    for(var r=0;r<rows;r++){
+      for(var c=0;c<cols;c++){
+        var key = r + "," + c;
+        if(idx < state.students.length){
+          newSeatMap[key] = state.students[idx].id;
+          idx++;
+        }else{
+          newSeatMap[key] = null;
+        }
+      }
+    }
+    state.seatMap = newSeatMap;
+    renderAll();
+  }
+
+  // ---------- 랜덤 배치 (Fisher-Yates) ----------
+  function shuffleArray(arr){
+    for(var i = arr.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function toggleNeedFront(id){
+    var s = studentById(id);
+    if(!s) return;
+    s.needFront = !s.needFront;
+    renderAll();
+  }
+
+  function setGender(id, gender){
+    var s = studentById(id);
+    if(!s) return;
+    s.gender = gender || null;
+    renderAll();
+  }
+
+  function toggleLock(id){
+    var s = studentById(id);
+    if(!s) return;
+    s.locked = !s.locked;
+    renderAll();
+  }
+
+  function addKeepApartPair(){
+    var selA = document.getElementById("keepApartSelectA");
+    var selB = document.getElementById("keepApartSelectB");
+    if(!selA || !selB) return;
+    var idA = selA.value, idB = selB.value;
+    if(!idA || !idB || idA === idB) return;
+    var exists = (state.constraints.keepApart || []).some(function(p){
+      return (p[0] === idA && p[1] === idB) || (p[0] === idB && p[1] === idA);
+    });
+    if(exists) return;
+    if(!state.constraints.keepApart) state.constraints.keepApart = [];
+    state.constraints.keepApart.push([idA, idB]);
+    renderAll();
+  }
+
+  function removeKeepApartPair(idx){
+    if(!state.constraints.keepApart) return;
+    state.constraints.keepApart.splice(idx, 1);
+    renderAll();
+  }
+
+  function isAdjacent(seatKeyA, seatKeyB, cols){
+    if(!seatKeyA || !seatKeyB) return false;
+    var a = seatKeyA.split(",").map(Number);
+    var b = seatKeyB.split(",").map(Number);
+    var ar = a[0], ac = a[1], br = b[0], bc = b[1];
+    if(ar === br && Math.abs(ac - bc) === 1) return true;
+    if(ac === bc && Math.abs(ar - br) === 1) return true;
+    return false;
+  }
+
+  function assignSeatsRandomly(movableStudentIds, openSeatKeys){
+    shuffleArray(movableStudentIds);
+    shuffleArray(openSeatKeys);
+    openSeatKeys.forEach(function(key, idx){
+      state.seatMap[key] = idx < movableStudentIds.length ? movableStudentIds[idx] : null;
+    });
+  }
+
+  function assignSeatsWithConstraints(movableStudentIds, openSeatKeys){
+    var frontIds = [];
+    var restIds = [];
+    movableStudentIds.forEach(function(id){
+      var st = studentById(id);
+      if(st && st.needFront) frontIds.push(id); else restIds.push(id);
+    });
+    shuffleArray(frontIds);
+    shuffleArray(restIds);
+
+    var sortedSeatKeys = openSeatKeys.slice().sort(function(keyA, keyB){
+      var ra = parseInt(keyA.split(",")[0], 10);
+      var rb = parseInt(keyB.split(",")[0], 10);
+      return ra - rb;
+    });
+
+    var frontSeatKeys = sortedSeatKeys.slice(0, frontIds.length);
+    var remainingSeatKeys = sortedSeatKeys.slice(frontIds.length);
+    shuffleArray(remainingSeatKeys);
+
+    frontSeatKeys.forEach(function(key, idx){
+      state.seatMap[key] = frontIds[idx];
+    });
+    remainingSeatKeys.forEach(function(key, idx){
+      state.seatMap[key] = idx < restIds.length ? restIds[idx] : null;
+    });
+  }
+
+  function findKeepApartViolations(cols){
+    var pairs = state.constraints.keepApart || [];
+    var violations = [];
+    pairs.forEach(function(pair){
+      var idA = pair[0], idB = pair[1];
+      var keyA = null, keyB = null;
+      Object.keys(state.seatMap).forEach(function(key){
+        if(state.seatMap[key] === idA) keyA = key;
+        if(state.seatMap[key] === idB) keyB = key;
+      });
+      if(isAdjacent(keyA, keyB, cols)){
+        violations.push(pair);
+      }
+    });
+    return violations;
+  }
+
+  function shuffleSeats(){
+    var rows = state.classroom.rows, cols = state.classroom.cols;
+    if(!rows || !cols) return;
+
+    var lockedSeatKeys = {};
+    Object.keys(state.seatMap).forEach(function(key){
+      var sid = state.seatMap[key];
+      var st = sid ? studentById(sid) : null;
+      if(st && st.locked) lockedSeatKeys[key] = true;
+    });
+
+    var seated = seatedStudentIds();
+    var movableStudentIds = [];
+    state.students.forEach(function(s){
+      if(s.locked) return;
+      movableStudentIds.push(s.id);
+    });
+
+    var openSeatKeys = [];
+    for(var r=0;r<rows;r++){
+      for(var c=0;c<cols;c++){
+        var key = r + "," + c;
+        if(!lockedSeatKeys[key]) openSeatKeys.push(key);
+      }
+    }
+
+    var useConstraints = !!state.classroom.useConstraints;
+    var violations = [];
+
+    if(!useConstraints){
+      assignSeatsRandomly(movableStudentIds, openSeatKeys);
+    }else{
+      var maxTries = 30;
+      var tryCount = 0;
+      do{
+        assignSeatsWithConstraints(movableStudentIds, openSeatKeys);
+        violations = findKeepApartViolations(cols);
+        tryCount++;
+      }while(violations.length > 0 && tryCount < maxTries);
+    }
+
+    var capacityMsg = "";
+    if(state.students.length > totalSeats()){
+      capacityMsg = "학생 수(" + state.students.length + "명)가 자리 수(" + totalSeats() + "석)보다 많습니다. " + (state.students.length - totalSeats()) + "명이 배치되지 못했습니다.";
+    }
+
+    var violationMsg = "";
+    if(violations.length > 0){
+      var names = violations.map(function(pair){
+        var sa = studentById(pair[0]);
+        var sb = studentById(pair[1]);
+        return "'" + (sa ? sa.name : "?") + " ↔ " + (sb ? sb.name : "?") + "'";
+      }).join(", ");
+      violationMsg = "떨어뜨리기로 지정한 " + names + " 학생이 이번 배치에서 인접 배치되었습니다.";
+    }
+
+    renderAll();
+
+    var combinedMsg = [capacityMsg, violationMsg].filter(function(m){ return m; }).join("\n");
+    showWarning(combinedMsg);
+
+    var stage = document.getElementById("stageContent");
+    var seats = stage.querySelectorAll(".seat");
+    seats.forEach(function(seatEl){
+      seatEl.classList.add("shuffle-anim");
+    });
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        seats.forEach(function(seatEl){ seatEl.classList.remove("shuffle-anim"); });
+      });
+    });
+  }
+
+  // ---------- 배치 저장/불러오기/삭제 ----------
+  function saveCurrentLayout(){
+    var name = prompt("저장할 배치 이름을 입력하세요.");
+    if(name === null) return;
+    name = name.trim();
+    if(!name) return;
+    state.savedLayouts.push({
+      id: nextId(),
+      name: name,
+      savedAt: new Date().toISOString(),
+      snapshot: {
+        students: JSON.parse(JSON.stringify(state.students)),
+        classroom: JSON.parse(JSON.stringify(state.classroom)),
+        seatMap: JSON.parse(JSON.stringify(state.seatMap)),
+        constraints: JSON.parse(JSON.stringify(state.constraints))
+      }
+    });
+    currentLayoutName = name;
+    renderAll();
+  }
+
+  function loadSavedLayout(layoutId){
+    var layout = null;
+    for(var i=0;i<state.savedLayouts.length;i++){
+      if(state.savedLayouts[i].id === layoutId){ layout = state.savedLayouts[i]; break; }
+    }
+    if(!layout) return;
+    var snap = layout.snapshot;
+    state.students = JSON.parse(JSON.stringify(snap.students || []));
+    state.classroom = JSON.parse(JSON.stringify(snap.classroom || state.classroom));
+    state.seatMap = JSON.parse(JSON.stringify(snap.seatMap || {}));
+    state.constraints = JSON.parse(JSON.stringify(snap.constraints || { keepApart: [] }));
+    currentLayoutName = layout.name;
+    renderAll();
+  }
+
+  function deleteSavedLayout(layoutId){
+    state.savedLayouts = state.savedLayouts.filter(function(l){ return l.id !== layoutId; });
+    renderAll();
+  }
+
+  function clearAll(){
+    if(!confirm("정말 전체 명단과 자리 배치를 지우시겠습니까? 되돌릴 수 없습니다.")) return;
+    state.students = [];
+    state.seatMap = {};
+    state.constraints = { keepApart: [] };
+    renderAll();
+  }
+
+  // ---------- 좌석 배치 로직 (공용) ----------
+  function placeStudentAtSeat(studentId, seatKey){
+    if(!studentId) return;
+    var fromKey = null;
+    Object.keys(state.seatMap).forEach(function(key){
+      if(state.seatMap[key] === studentId) fromKey = key;
+    });
+    var targetId = state.seatMap.hasOwnProperty(seatKey) ? state.seatMap[seatKey] : undefined;
+    if(targetId === undefined) return; // 존재하지 않는 좌석
+
+    if(fromKey === seatKey) return;
+
+    if(targetId){
+      // 이미 배치된 좌석 -> 자리 교체(swap)
+      if(fromKey){
+        state.seatMap[fromKey] = targetId;
+      }
+      state.seatMap[seatKey] = studentId;
+    }else{
+      // 빈 좌석 -> 이동/배치
+      if(fromKey){
+        state.seatMap[fromKey] = null;
+      }
+      state.seatMap[seatKey] = studentId;
+    }
+    renderAll();
+  }
+
+  function removeStudentFromSeat(studentId){
+    if(!studentId) return;
+    var changed = false;
+    Object.keys(state.seatMap).forEach(function(key){
+      if(state.seatMap[key] === studentId){ state.seatMap[key] = null; changed = true; }
+    });
+    if(changed) renderAll();
+  }
+
+  // ---------- 드래그앤드롭 (HTML5 DnD, 이벤트 위임) ----------
+  var rosterEl = document.querySelector("aside.roster");
+  var stageEl = document.querySelector("section.stage");
+  var studentListEl = document.getElementById("studentList");
+
+  rosterEl.addEventListener("dragstart", function(e){
+    var chip = e.target.closest(".student-chip");
+    if(!chip) return;
+    var id = chip.getAttribute("data-id");
+    e.dataTransfer.setData("text/plain", id);
+    e.dataTransfer.effectAllowed = "move";
+    chip.classList.add("dragging");
+  });
+  rosterEl.addEventListener("dragend", function(e){
+    var chip = e.target.closest(".student-chip");
+    if(chip) chip.classList.remove("dragging");
+  });
+  rosterEl.addEventListener("dragover", function(e){
+    if(!e.target.closest("#studentList")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    studentListEl.classList.add("drop-hover");
+  });
+  rosterEl.addEventListener("dragleave", function(e){
+    if(e.target === studentListEl || e.target.closest("#studentList") === studentListEl){
+      if(!studentListEl.contains(e.relatedTarget)){
+        studentListEl.classList.remove("drop-hover");
+      }
+    }
+  });
+  rosterEl.addEventListener("drop", function(e){
+    if(!e.target.closest("#studentList")) return;
+    e.preventDefault();
+    studentListEl.classList.remove("drop-hover");
+    var id = e.dataTransfer.getData("text/plain");
+    removeStudentFromSeat(id);
+  });
+
+  stageEl.addEventListener("dragstart", function(e){
+    var seat = e.target.closest(".seat");
+    if(!seat) return;
+    var key = seat.getAttribute("data-seat");
+    var studentId = state.seatMap[key];
+    if(!studentId){ e.preventDefault(); return; }
+    e.dataTransfer.setData("text/plain", studentId);
+    e.dataTransfer.effectAllowed = "move";
+    seat.classList.add("dragging");
+  });
+  stageEl.addEventListener("dragend", function(e){
+    var seat = e.target.closest(".seat");
+    if(seat) seat.classList.remove("dragging");
+  });
+  stageEl.addEventListener("dragover", function(e){
+    var seat = e.target.closest(".seat");
+    if(!seat) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    seat.classList.add("drop-hover");
+  });
+  stageEl.addEventListener("dragleave", function(e){
+    var seat = e.target.closest(".seat");
+    if(seat) seat.classList.remove("drop-hover");
+  });
+  stageEl.addEventListener("drop", function(e){
+    var seat = e.target.closest(".seat");
+    if(!seat) return;
+    e.preventDefault();
+    seat.classList.remove("drop-hover");
+    var id = e.dataTransfer.getData("text/plain");
+    placeStudentAtSeat(id, seat.getAttribute("data-seat"));
+  });
+
+  // 좌석을 draggable로 만들기 위해 렌더 후에도 속성 유지 (renderStage에서 매번 새로 만들므로 위임으로 처리하되,
+  // draggable 속성 자체는 DOM에 있어야 하므로 stage 컨테이너에 mutation 관찰 대신 렌더 직후 세팅)
+  var _origRenderStage = renderStage;
+  renderStage = function(){
+    _origRenderStage();
+    var seats = stageEl.querySelectorAll(".seat");
+    seats.forEach(function(seatEl){
+      seatEl.setAttribute("draggable", "true");
+    });
+  };
+
+  // ---------- 터치 드래그 지원 ----------
+  var touchState = null;
+
+  function findDropTargetFromPoint(x, y, proxyEl){
+    proxyEl.style.display = "none";
+    var el = document.elementFromPoint(x, y);
+    proxyEl.style.display = "";
+    if(!el) return null;
+    var seat = el.closest(".seat");
+    if(seat) return { type: "seat", el: seat, key: seat.getAttribute("data-seat") };
+    if(el.closest("#studentList")) return { type: "roster", el: studentListEl };
+    return null;
+  }
+
+  function clearSeatHover(){
+    stageEl.querySelectorAll(".seat.drop-hover").forEach(function(s){ s.classList.remove("drop-hover"); });
+    studentListEl.classList.remove("drop-hover");
+  }
+
+  function onTouchStart(e){
+    var chip = e.target.closest(".student-chip");
+    var seat = e.target.closest(".seat");
+    var sourceEl = chip || seat;
+    if(!sourceEl) return;
+    var studentId;
+    if(chip){
+      studentId = chip.getAttribute("data-id");
+    }else{
+      var key = seat.getAttribute("data-seat");
+      studentId = state.seatMap[key];
+      if(!studentId) return;
+    }
+    var touch = e.touches[0];
+    var rect = sourceEl.getBoundingClientRect();
+    var proxy = sourceEl.cloneNode(true);
+    proxy.classList.add("drag-proxy");
+    proxy.style.width = rect.width + "px";
+    proxy.style.height = rect.height + "px";
+    proxy.style.left = touch.clientX + "px";
+    proxy.style.top = touch.clientY + "px";
+    document.body.appendChild(proxy);
+
+    sourceEl.classList.add("dragging");
+
+    touchState = {
+      studentId: studentId,
+      sourceEl: sourceEl,
+      proxy: proxy
+    };
+  }
+
+  function onTouchMove(e){
+    if(!touchState) return;
+    e.preventDefault();
+    var touch = e.touches[0];
+    touchState.proxy.style.left = touch.clientX + "px";
+    touchState.proxy.style.top = touch.clientY + "px";
+
+    clearSeatHover();
+    var target = findDropTargetFromPoint(touch.clientX, touch.clientY, touchState.proxy);
+    if(target && target.type === "seat"){
+      target.el.classList.add("drop-hover");
+    }else if(target && target.type === "roster"){
+      studentListEl.classList.add("drop-hover");
+    }
+  }
+
+  function onTouchEnd(e){
+    if(!touchState) return;
+    var touch = e.changedTouches[0];
+    var target = findDropTargetFromPoint(touch.clientX, touch.clientY, touchState.proxy);
+
+    touchState.sourceEl.classList.remove("dragging");
+    clearSeatHover();
+    document.body.removeChild(touchState.proxy);
+
+    if(target && target.type === "seat"){
+      placeStudentAtSeat(touchState.studentId, target.key);
+    }else if(target && target.type === "roster"){
+      removeStudentFromSeat(touchState.studentId);
+    }
+    touchState = null;
+  }
+
+  rosterEl.addEventListener("touchstart", onTouchStart, { passive: true });
+  stageEl.addEventListener("touchstart", onTouchStart, { passive: true });
+  document.addEventListener("touchmove", function(e){
+    if(touchState) onTouchMove(e);
+  }, { passive: false });
+  document.addEventListener("touchend", function(e){
+    if(touchState) onTouchEnd(e);
+  });
+
+  // ---------- 이벤트 바인딩 ----------
+  document.getElementById("btnPasteAdd").addEventListener("click", function(){
+    var ta = document.getElementById("pasteInput");
+    addStudentsFromPaste(ta.value);
+    ta.value = "";
+  });
+
+  document.getElementById("btnSingleAdd").addEventListener("click", function(){
+    var input = document.getElementById("singleNameInput");
+    addSingleStudent(input.value);
+    input.value = "";
+    input.focus();
+  });
+
+  document.getElementById("btnSampleData").addEventListener("click", function(){
+    if(state.students.length > 0){
+      if(!confirm("기존 명단을 예시 명단으로 교체하시겠습니까?")) return;
+      state.students = [];
+      state.seatMap = {};
+    }
+    for(var i = 1; i <= 30; i++){
+      state.students.push({ id: nextId(), name: "학생" + i, gender: null, locked: false, needFront: false });
+    }
+    renderAll();
+  });
+  document.getElementById("singleNameInput").addEventListener("keydown", function(e){
+    if(e.key === "Enter"){
+      document.getElementById("btnSingleAdd").click();
+    }
+  });
+
+  document.getElementById("btnApplyClassroom").addEventListener("click", function(){
+    applyClassroomSettings(
+      document.getElementById("inputRows").value,
+      document.getElementById("inputCols").value,
+      document.getElementById("inputPaired").checked
+    );
+  });
+
+  document.getElementById("btnAutoFill").addEventListener("click", autoFill);
+  document.getElementById("btnShuffle").addEventListener("click", shuffleSeats);
+  document.getElementById("btnClearAll").addEventListener("click", clearAll);
+  document.getElementById("btnSaveLayout").addEventListener("click", saveCurrentLayout);
+  document.getElementById("btnPrint").addEventListener("click", function(){ window.print(); });
+  document.getElementById("viewDirectionToggle").addEventListener("click", function(){
+    state.classroom.viewFromTeacher = state.classroom.viewFromTeacher === false ? true : false;
+    renderAll();
+  });
+
+  rosterEl.addEventListener("click", function(e){
+    var lockBtn = e.target.closest("[data-lock-toggle]");
+    if(lockBtn){ toggleLock(lockBtn.getAttribute("data-lock-toggle")); return; }
+
+    var loadBtn = e.target.closest("[data-load-layout]");
+    if(loadBtn){ loadSavedLayout(loadBtn.getAttribute("data-load-layout")); return; }
+
+    var delLayoutBtn = e.target.closest("[data-del-layout]");
+    if(delLayoutBtn){ deleteSavedLayout(delLayoutBtn.getAttribute("data-del-layout")); return; }
+
+    var addKeepApartBtn = e.target.closest("#btnAddKeepApart");
+    if(addKeepApartBtn){ addKeepApartPair(); return; }
+
+    var delKeepApartBtn = e.target.closest("[data-del-keepapart]");
+    if(delKeepApartBtn){ removeKeepApartPair(parseInt(delKeepApartBtn.getAttribute("data-del-keepapart"), 10)); return; }
+  });
+
+  rosterEl.addEventListener("change", function(e){
+    var frontToggle = e.target.closest("[data-front-toggle]");
+    if(frontToggle){ toggleNeedFront(frontToggle.getAttribute("data-front-toggle")); return; }
+
+    var genderSelect = e.target.closest("[data-gender-select]");
+    if(genderSelect){ setGender(genderSelect.getAttribute("data-gender-select"), genderSelect.value); return; }
+
+    if(e.target.id === "inputUseConstraints"){
+      state.classroom.useConstraints = e.target.checked;
+      renderAll();
+      return;
+    }
+    if(e.target.id === "inputShowGenderColor"){
+      state.classroom.showGenderColor = e.target.checked;
+      renderAll();
+      return;
+    }
+  });
+
+  // ---------- 초기화 ----------
+  loadState();
+  renderAll();
+
+})();
+</script>
+</body>
+</html>
