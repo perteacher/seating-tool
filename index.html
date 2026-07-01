@@ -188,28 +188,40 @@
   }
   .classroom-form .apply-row{ grid-column: 1 / -1; margin-top: 4px; }
 
-  /* ---------- 무대(칠판+격자) ---------- */
-  .board-banner{
-    background: var(--board);
-    color: var(--board-text);
-    text-align: center;
-    padding: 10px;
-    border-radius: 8px;
-    font-family: 'Gowun Batang', serif;
-    font-size: 1.05rem;
-    letter-spacing: 4px;
-    margin-bottom: 22px;
-    box-shadow: var(--shadow);
-  }
-
+  /* ---------- 무대(칠판/교탁 + 좌석 캔버스) ---------- */
   .seat-grid{
-    display: inline-grid;
-    gap: 10px;
-    padding: 18px;
+    position: relative;
     background: var(--paper-raised);
     border-radius: 12px;
     box-shadow: var(--shadow);
   }
+  .seat-grid.edit-mode{
+    outline: 2px dashed var(--wood);
+    outline-offset: 4px;
+  }
+  .podium-marker{
+    position: absolute;
+    background: var(--board);
+    color: var(--board-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border-radius: 8px;
+    font-family: 'Gowun Batang', serif;
+    font-size: 0.92rem;
+    letter-spacing: 2px;
+    box-shadow: var(--shadow);
+    user-select: none;
+    z-index: 5;
+  }
+  .seat-grid.edit-mode .podium-marker{
+    cursor: move;
+    touch-action: none;
+    outline: 2px dashed var(--board-text);
+    outline-offset: -4px;
+  }
+  .podium-marker.dragging-desk{ opacity: 0.75; }
   .seat{
     width: 108px;
     height: 78px;
@@ -223,9 +235,11 @@
     text-align: center;
     font-size: 0.86rem;
     font-weight: 500;
-    position: relative;
+    position: absolute;
     padding: 4px;
   }
+  .seat-grid.edit-mode .seat{ cursor: move; touch-action: none; }
+  .seat.dragging-desk{ opacity: 0.75; }
   .seat.empty{
     border-top-color: var(--line-strong);
     color: var(--ink-soft);
@@ -237,7 +251,6 @@
   .seat.gender-girl{ background: var(--girl-tint); }
   .seat.dragging{ opacity: 0.35; }
   .seat.drop-hover{ border-color: var(--wood); box-shadow: 0 0 0 2px var(--wood) inset; }
-  .seat .pair-gap-after{ margin-right: 18px; }
   .seat{ transition: opacity 200ms ease, transform 200ms ease; }
   .seat.shuffle-anim{ opacity: 0; transform: scale(0.92); }
   .seat.locked{
@@ -326,6 +339,7 @@
   .print-only-header{ display: none; }
   .seat-grid.view-student{ transform: scaleX(-1); }
   .seat-grid.view-student .seat{ transform: scaleX(-1); }
+  .seat-grid.view-student .podium-marker{ transform: scaleX(-1); }
 
   @page { size: A4 landscape; margin: 12mm; }
 
@@ -345,25 +359,20 @@
     .print-only-header .title{ font-size: 1.4rem; font-weight: 700; }
     .print-only-header .date{ font-size: 0.85rem; color: var(--ink-soft); margin-top: 2mm; }
 
-    .board-banner{
+    .podium-marker{
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
       border: 2px solid var(--board);
     }
 
     .seat-grid{
-      width: 100%;
       box-shadow: none;
-      padding: 4mm;
-      gap: 4mm;
+      background: none;
+      transform-origin: top left;
+      transform: scale(min(1, calc(1030px / var(--canvas-w, 1030))));
     }
-    .seat-grid[style]{ grid-template-columns: unset !important; }
-    .seat-grid{ display: grid; grid-template-columns: repeat(var(--print-cols, 6), 1fr); }
-    .seat{
-      width: auto;
-      height: auto;
-      min-height: 16mm;
-      font-size: 0.8rem;
+    .seat-grid.view-student{
+      transform: scaleX(-1) scale(min(1, calc(1030px / var(--canvas-w, 1030))));
     }
   }
 </style>
@@ -375,6 +384,8 @@
   <div class="toolbar-actions">
     <button class="btn btn-ghost" id="btnAutoFill">자동 채우기</button>
     <button class="btn btn-ghost" id="btnShuffle">랜덤 배치</button>
+    <button class="btn btn-ghost" id="btnEditDeskLayout">책상 배치 편집</button>
+    <button class="btn btn-ghost btn-small" id="btnResetDeskLayout" title="책상/교탁 위치를 기본 배열로 되돌립니다">배치 초기화</button>
     <button class="btn btn-ghost" id="btnClearAll">전체 지우기</button>
     <button class="btn btn-ghost" id="btnSaveLayout">저장</button>
     <button class="btn btn-ghost" id="viewDirectionToggle">학생 시점으로 보기</button>
@@ -394,6 +405,7 @@
           <li>4) 랜덤 배치와 자물쇠로 자리를 섞거나 고정하세요</li>
           <li>5) 이름 붙여 저장했다가 나중에 불러오세요</li>
           <li>6) 인쇄 버튼으로 자리표를 출력하세요</li>
+          <li>7) '책상 배치 편집'으로 교탁·책상 위치를 자유롭게 옮기고, '배치 초기화'로 되돌릴 수 있어요</li>
         </ul>
       </details>
     </div>
@@ -469,7 +481,6 @@
       <div class="date" id="printDate"></div>
     </div>
     <div class="warn-banner" id="warnBanner"></div>
-    <div class="board-banner" id="boardBanner">칠 판 / 교 탁</div>
     <div id="stageContent"></div>
   </section>
 </div>
@@ -484,13 +495,47 @@
 
   var state = {
     students: [],
-    classroom: { rows: 5, cols: 6, paired: false, frontLabel: "칠판/교탁", viewFromTeacher: true, useConstraints: false, showGenderColor: false },
+    classroom: { rows: 5, cols: 6, paired: false, frontLabel: "칠판/교탁", viewFromTeacher: true, useConstraints: false, showGenderColor: false, deskPositions: {}, podiumPosition: null },
     seatMap: {},
     constraints: { keepApart: [] },
     savedLayouts: []
   };
 
   var currentLayoutName = null;
+  var layoutEditMode = false;
+
+  var CELL_W = 108, CELL_H = 78, GAP = 10, PAIR_EXTRA = 18, PAD = 18;
+  var PODIUM_W = 170, PODIUM_H = 42, PODIUM_GAP = 16;
+
+  function computeCanvasLayout(rows, cols, paired){
+    var colX = [];
+    var x = PAD;
+    for(var c=0;c<cols;c++){
+      colX.push(x);
+      var extra = (paired && cols > 2 && (c % 2 === 1) && c < cols - 1) ? PAIR_EXTRA : 0;
+      x += CELL_W + GAP + extra;
+    }
+    var gridContentWidth = (colX[cols - 1] + CELL_W) - PAD;
+    var canvasWidth = colX[cols - 1] + CELL_W + PAD;
+
+    var rowTop = PAD + PODIUM_H + PODIUM_GAP;
+    var rowY = [];
+    var y = rowTop;
+    for(var r=0;r<rows;r++){
+      rowY.push(y);
+      y += CELL_H + GAP;
+    }
+    var canvasHeight = rowY[rows - 1] + CELL_H + PAD;
+
+    return {
+      colX: colX,
+      rowY: rowY,
+      canvasWidth: canvasWidth,
+      canvasHeight: canvasHeight,
+      podiumDefaultX: PAD + (gridContentWidth - PODIUM_W) / 2,
+      podiumDefaultY: PAD
+    };
+  }
 
   var uidCounter = 1;
   function nextId(){ return "s" + (uidCounter++) + "_" + Date.now().toString(36); }
@@ -646,6 +691,13 @@
     if(!btn) return;
     var isTeacher = state.classroom.viewFromTeacher !== false;
     btn.textContent = isTeacher ? "학생 시점으로 보기" : "교사 시점으로 보기";
+    btn.disabled = layoutEditMode;
+
+    var editBtn = document.getElementById("btnEditDeskLayout");
+    if(editBtn){
+      editBtn.textContent = layoutEditMode ? "책상 배치 편집 종료" : "책상 배치 편집";
+      editBtn.classList.toggle("btn-primary", layoutEditMode);
+    }
   }
 
   function renderSavedLayouts(){
@@ -780,11 +832,9 @@
 
   function renderStage(){
     var stage = document.getElementById("stageContent");
-    var boardBanner = document.getElementById("boardBanner");
-    boardBanner.textContent = state.classroom.frontLabel || "칠판/교탁";
+    stage.innerHTML = "";
 
     if(!state.classroom.rows || !state.classroom.cols){
-      stage.innerHTML = "";
       var emptyDiv = document.createElement("div");
       emptyDiv.className = "empty-state";
       emptyDiv.textContent = "명단을 붙여넣고 교실 크기를 설정하세요.";
@@ -796,12 +846,27 @@
     var rows = state.classroom.rows;
     var cols = state.classroom.cols;
     var paired = state.classroom.paired;
+    var layout = computeCanvasLayout(rows, cols, paired);
 
-    var grid = document.createElement("div");
-    grid.className = "seat-grid" + (state.classroom.viewFromTeacher === false ? " view-student" : "");
-    grid.style.gridTemplateColumns = "repeat(" + cols + ", 108px)";
-    grid.style.gridTemplateRows = "repeat(" + rows + ", 78px)";
-    grid.style.setProperty("--print-cols", cols);
+    var canvas = document.createElement("div");
+    canvas.id = "stageCanvas";
+    canvas.className = "seat-grid" + (state.classroom.viewFromTeacher === false ? " view-student" : "") + (layoutEditMode ? " edit-mode" : "");
+    canvas.style.width = layout.canvasWidth + "px";
+    canvas.style.height = layout.canvasHeight + "px";
+    canvas.style.setProperty("--canvas-w", layout.canvasWidth);
+
+    var podiumPos = state.classroom.podiumPosition || { x: layout.podiumDefaultX, y: layout.podiumDefaultY };
+    var podiumEl = document.createElement("div");
+    podiumEl.className = "podium-marker";
+    podiumEl.id = "podiumMarker";
+    podiumEl.style.left = podiumPos.x + "px";
+    podiumEl.style.top = podiumPos.y + "px";
+    podiumEl.style.width = PODIUM_W + "px";
+    podiumEl.style.height = PODIUM_H + "px";
+    podiumEl.textContent = state.classroom.frontLabel || "칠판/교탁";
+    canvas.appendChild(podiumEl);
+
+    var deskPositions = state.classroom.deskPositions || {};
 
     for(var r=0;r<rows;r++){
       for(var c=0;c<cols;c++){
@@ -809,17 +874,20 @@
         var studentId = state.seatMap[key];
         var seatEl = document.createElement("div");
         seatEl.setAttribute("data-seat", key);
+        seatEl.setAttribute("draggable", layoutEditMode ? "false" : "true");
 
-        if(paired && cols > 2 && (c % 2 === 1) && c < cols - 1){
-          seatEl.classList.add("pair-gap-after");
-        }
+        var custom = deskPositions[key];
+        var posX = custom ? custom.x : layout.colX[c];
+        var posY = custom ? custom.y : layout.rowY[r];
+        seatEl.style.left = posX + "px";
+        seatEl.style.top = posY + "px";
 
         var student = studentId ? studentById(studentId) : null;
         if(student){
           var genderClass = "";
           if(state.classroom.showGenderColor && student.gender === "남") genderClass = " gender-boy";
           else if(state.classroom.showGenderColor && student.gender === "여") genderClass = " gender-girl";
-          seatEl.className += " seat" + (student.locked ? " locked" : "") + genderClass;
+          seatEl.className = "seat" + (student.locked ? " locked" : "") + genderClass;
           seatEl.textContent = student.name;
           if(student.locked){
             var badge = document.createElement("span");
@@ -828,20 +896,20 @@
             seatEl.appendChild(badge);
           }
         }else{
-          seatEl.className += " seat empty";
+          seatEl.className = "seat empty";
           seatEl.textContent = "빈자리";
         }
-        grid.appendChild(seatEl);
+        canvas.appendChild(seatEl);
       }
     }
-    stage.innerHTML = "";
+
     if(state.students.length === 0){
       var noStudentHint = document.createElement("div");
       noStudentHint.className = "stage-hint";
       noStudentHint.textContent = "명단을 붙여넣으면 이 자리에 표시됩니다.";
       stage.appendChild(noStudentHint);
     }
-    stage.appendChild(grid);
+    stage.appendChild(canvas);
 
     var unseated = state.students.length - Object.keys(seatedStudentIds()).length;
     if(state.students.length > totalSeats()){
@@ -1229,6 +1297,7 @@
   });
 
   stageEl.addEventListener("dragstart", function(e){
+    if(layoutEditMode) return;
     var seat = e.target.closest(".seat");
     if(!seat) return;
     var key = seat.getAttribute("data-seat");
@@ -1262,18 +1331,7 @@
     placeStudentAtSeat(id, seat.getAttribute("data-seat"));
   });
 
-  // 좌석을 draggable로 만들기 위해 렌더 후에도 속성 유지 (renderStage에서 매번 새로 만들므로 위임으로 처리하되,
-  // draggable 속성 자체는 DOM에 있어야 하므로 stage 컨테이너에 mutation 관찰 대신 렌더 직후 세팅)
-  var _origRenderStage = renderStage;
-  renderStage = function(){
-    _origRenderStage();
-    var seats = stageEl.querySelectorAll(".seat");
-    seats.forEach(function(seatEl){
-      seatEl.setAttribute("draggable", "true");
-    });
-  };
-
-  // ---------- 터치 드래그 지원 ----------
+  // ---------- 터치 드래그 지원 (학생 배치) ----------
   var touchState = null;
 
   function findDropTargetFromPoint(x, y, proxyEl){
@@ -1293,6 +1351,7 @@
   }
 
   function onTouchStart(e){
+    if(layoutEditMode) return;
     var chip = e.target.closest(".student-chip");
     var seat = e.target.closest(".seat");
     var sourceEl = chip || seat;
@@ -1366,6 +1425,70 @@
     if(touchState) onTouchEnd(e);
   });
 
+  // ---------- 책상/교탁 자유 배치 (편집 모드, Pointer Events로 마우스+터치 공통 처리) ----------
+  var deskDragState = null;
+
+  function getCanvasEl(){ return document.getElementById("stageCanvas"); }
+
+  function startDeskDrag(e, el, kind, key){
+    var canvas = getCanvasEl();
+    if(!canvas) return;
+    e.preventDefault();
+    deskDragState = {
+      kind: kind,
+      key: key,
+      el: el,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startLeft: parseFloat(el.style.left) || 0,
+      startTop: parseFloat(el.style.top) || 0,
+      canvasWidth: canvas.clientWidth,
+      canvasHeight: canvas.clientHeight,
+      elWidth: el.offsetWidth,
+      elHeight: el.offsetHeight
+    };
+    el.classList.add("dragging-desk");
+    try{ el.setPointerCapture(e.pointerId); }catch(err){ /* 캡처 실패 시 그냥 진행 */ }
+  }
+
+  function onDeskPointerMove(e){
+    if(!deskDragState) return;
+    var dx = e.clientX - deskDragState.startClientX;
+    var dy = e.clientY - deskDragState.startClientY;
+    var newLeft = deskDragState.startLeft + dx;
+    var newTop = deskDragState.startTop + dy;
+    newLeft = Math.max(0, Math.min(newLeft, deskDragState.canvasWidth - deskDragState.elWidth));
+    newTop = Math.max(0, Math.min(newTop, deskDragState.canvasHeight - deskDragState.elHeight));
+    deskDragState.el.style.left = newLeft + "px";
+    deskDragState.el.style.top = newTop + "px";
+  }
+
+  function onDeskPointerUp(e){
+    if(!deskDragState) return;
+    var left = parseFloat(deskDragState.el.style.left) || 0;
+    var top = parseFloat(deskDragState.el.style.top) || 0;
+    if(deskDragState.kind === "seat"){
+      if(!state.classroom.deskPositions) state.classroom.deskPositions = {};
+      state.classroom.deskPositions[deskDragState.key] = { x: left, y: top };
+    }else if(deskDragState.kind === "podium"){
+      state.classroom.podiumPosition = { x: left, y: top };
+    }
+    deskDragState.el.classList.remove("dragging-desk");
+    deskDragState = null;
+    saveState();
+  }
+
+  stageEl.addEventListener("pointerdown", function(e){
+    if(!layoutEditMode) return;
+    var seat = e.target.closest(".seat");
+    var podium = e.target.closest(".podium-marker");
+    if(seat){ startDeskDrag(e, seat, "seat", seat.getAttribute("data-seat")); }
+    else if(podium){ startDeskDrag(e, podium, "podium", null); }
+  });
+  stageEl.addEventListener("pointermove", onDeskPointerMove);
+  stageEl.addEventListener("pointerup", onDeskPointerUp);
+  stageEl.addEventListener("pointercancel", onDeskPointerUp);
+
   // ---------- 이벤트 바인딩 ----------
   document.getElementById("btnPasteAdd").addEventListener("click", function(){
     var ta = document.getElementById("pasteInput");
@@ -1412,6 +1535,26 @@
   document.getElementById("btnPrint").addEventListener("click", function(){ window.print(); });
   document.getElementById("viewDirectionToggle").addEventListener("click", function(){
     state.classroom.viewFromTeacher = state.classroom.viewFromTeacher === false ? true : false;
+    renderAll();
+  });
+
+  document.getElementById("btnEditDeskLayout").addEventListener("click", function(){
+    layoutEditMode = !layoutEditMode;
+    if(layoutEditMode && state.classroom.viewFromTeacher === false){
+      state.classroom.viewFromTeacher = true;
+    }
+    renderAll();
+    if(layoutEditMode){
+      showWarning("책상 배치 편집 중입니다. 책상이나 교탁을 끌어서 위치를 바꾸세요. (편집 중에는 교사 시점으로 고정됩니다)");
+    }else{
+      showWarning("");
+    }
+  });
+
+  document.getElementById("btnResetDeskLayout").addEventListener("click", function(){
+    if(!confirm("책상과 교탁 위치를 기본 배열로 되돌리시겠습니까?")) return;
+    state.classroom.deskPositions = {};
+    state.classroom.podiumPosition = null;
     renderAll();
   });
 
