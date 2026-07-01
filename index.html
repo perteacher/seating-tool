@@ -337,9 +337,9 @@
 
   /* ---------- 시점 토글 / 인쇄 전용 헤더 ---------- */
   .print-only-header{ display: none; }
-  .seat-grid.view-student{ transform: scaleX(-1); }
-  .seat-grid.view-student .seat{ transform: scaleX(-1); }
-  .seat-grid.view-student .podium-marker{ transform: scaleX(-1); }
+  .seat-grid.mirrored-view{ transform: scaleX(-1); }
+  .seat-grid.mirrored-view .seat{ transform: scaleX(-1); }
+  .seat-grid.mirrored-view .podium-marker{ transform: scaleX(-1); }
 
   @page { size: A4 landscape; margin: 12mm; }
 
@@ -371,7 +371,7 @@
       transform-origin: top left;
       transform: scale(min(1, calc(1030px / var(--canvas-w, 1030))));
     }
-    .seat-grid.view-student{
+    .seat-grid.mirrored-view{
       transform: scaleX(-1) scale(min(1, calc(1030px / var(--canvas-w, 1030))));
     }
   }
@@ -850,7 +850,7 @@
 
     var canvas = document.createElement("div");
     canvas.id = "stageCanvas";
-    canvas.className = "seat-grid" + (state.classroom.viewFromTeacher === false ? " view-student" : "") + (layoutEditMode ? " edit-mode" : "");
+    canvas.className = "seat-grid" + (state.classroom.viewFromTeacher !== false ? " mirrored-view" : "") + (layoutEditMode ? " edit-mode" : "");
     canvas.style.width = layout.canvasWidth + "px";
     canvas.style.height = layout.canvasHeight + "px";
     canvas.style.setProperty("--canvas-w", layout.canvasWidth);
@@ -1540,12 +1540,12 @@
 
   document.getElementById("btnEditDeskLayout").addEventListener("click", function(){
     layoutEditMode = !layoutEditMode;
-    if(layoutEditMode && state.classroom.viewFromTeacher === false){
-      state.classroom.viewFromTeacher = true;
+    if(layoutEditMode && state.classroom.viewFromTeacher !== false){
+      state.classroom.viewFromTeacher = false;
     }
     renderAll();
     if(layoutEditMode){
-      showWarning("책상 배치 편집 중입니다. 책상이나 교탁을 끌어서 위치를 바꾸세요. (편집 중에는 교사 시점으로 고정됩니다)");
+      showWarning("책상 배치 편집 중입니다. 책상이나 교탁을 끌어서 위치를 바꾸세요. (편집 중에는 학생 시점으로 고정됩니다)");
     }else{
       showWarning("");
     }
