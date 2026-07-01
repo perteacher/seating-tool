@@ -337,9 +337,9 @@
 
   /* ---------- 시점 토글 / 인쇄 전용 헤더 ---------- */
   .print-only-header{ display: none; }
-  .seat-grid.mirrored-view{ transform: scaleX(-1); }
-  .seat-grid.mirrored-view .seat{ transform: scaleX(-1); }
-  .seat-grid.mirrored-view .podium-marker{ transform: scaleX(-1); }
+  .seat-grid.mirrored-view{ transform: rotate(180deg); }
+  .seat-grid.mirrored-view .seat{ transform: rotate(180deg); }
+  .seat-grid.mirrored-view .podium-marker{ transform: rotate(180deg); }
 
   @page { size: A4 landscape; margin: 12mm; }
 
@@ -372,7 +372,8 @@
       transform: scale(min(1, calc(1030px / var(--canvas-w, 1030))));
     }
     .seat-grid.mirrored-view{
-      transform: scaleX(-1) scale(min(1, calc(1030px / var(--canvas-w, 1030))));
+      transform-origin: center center;
+      transform: rotate(180deg) scale(min(1, calc(1030px / var(--canvas-w, 1030))));
     }
   }
 </style>
