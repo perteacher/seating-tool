@@ -406,7 +406,12 @@
       font-family: 'Gowun Batang', serif;
     }
     .print-only-header .title{ font-size: 1.4rem; font-weight: 700; }
+    .print-only-header .period{ font-size: 0.9rem; color: var(--ink); margin-top: 3mm; font-weight: 600; }
+    .print-only-header .period:empty{ display: none; }
     .print-only-header .date{ font-size: 0.85rem; color: var(--ink-soft); margin-top: 2mm; }
+
+    .resize-handle, .resize-hint{ display: none !important; }
+    .seat-grid.edit-mode{ outline: none !important; }
 
     .podium-marker{
       -webkit-print-color-adjust: exact;
@@ -414,15 +419,20 @@
       border: 2px solid var(--board);
     }
 
+    #stageCanvasWrap{
+      width: auto !important;
+      height: auto !important;
+    }
+
     .seat-grid{
       box-shadow: none;
       background: none;
-      transform-origin: top left;
-      transform: scale(min(1, calc(1030 / var(--canvas-w, 1030))));
+      transform: none;
+      zoom: min(1, calc(1030 / var(--canvas-w, 1030)), calc(600 / var(--canvas-h, 600)));
     }
     .seat-grid.mirrored-view{
-      transform-origin: center center;
-      transform: rotate(180deg) scale(min(1, calc(1030 / var(--canvas-w, 1030))));
+      transform: rotate(180deg);
+      zoom: min(1, calc(1030 / var(--canvas-w, 1030)), calc(600 / var(--canvas-h, 600)));
     }
   }
 </style>
@@ -501,6 +511,22 @@
     </div>
 
     <div class="panel-block">
+      <h2>인쇄 설정</h2>
+      <div class="classroom-form">
+        <label style="grid-column:1 / -1;">제목
+          <input type="text" id="inputDocTitle" placeholder="예) 8월 자리 배치">
+        </label>
+        <label>적용 시작일
+          <input type="date" id="inputPeriodStart">
+        </label>
+        <label>적용 종료일
+          <input type="date" id="inputPeriodEnd">
+        </label>
+        <div class="hint" style="grid-column:1 / -1; margin:0;">인쇄물 상단에 표시됩니다. 비워두면 기본 제목과 오늘 날짜만 표시돼요.</div>
+      </div>
+    </div>
+
+    <div class="panel-block">
       <h2>저장된 배치</h2>
       <ul id="savedLayoutList" class="saved-layout-list"></ul>
     </div>
@@ -542,6 +568,7 @@
   <section class="stage">
     <div class="print-only-header" id="printOnlyHeader">
       <div class="title" id="printLayoutName">제목 없는 배치</div>
+      <div class="period" id="printPeriod"></div>
       <div class="date" id="printDate"></div>
     </div>
     <div class="warn-banner" id="warnBanner"></div>
@@ -559,7 +586,7 @@
 
   var state = {
     students: [],
-    classroom: { rows: 5, cols: 6, paired: false, frontLabel: "칠판/교탁", viewFromTeacher: true, useConstraints: false, showGenderColor: false, deskPositions: {}, podiumPosition: null, extraWidth: 0, extraHeight: 0, constraintsPanelHidden: false },
+    classroom: { rows: 5, cols: 6, paired: false, frontLabel: "칠판/교탁", viewFromTeacher: true, useConstraints: false, showGenderColor: false, deskPositions: {}, podiumPosition: null, extraWidth: 0, extraHeight: 0, constraintsPanelHidden: false, docTitle: "", periodStart: "", periodEnd: "" },
     seatMap: {},
     constraints: { keepApart: [], fixedSeats: [] },
     savedLayouts: []
@@ -828,11 +855,29 @@
     }
   }
 
+  function formatPeriodDate(iso){
+    if(!iso) return "";
+    var parts = iso.split("-");
+    if(parts.length !== 3) return iso;
+    return parts[0] + "." + parts[1] + "." + parts[2] + ".";
+  }
+
   function renderPrintHeader(){
     var nameEl = document.getElementById("printLayoutName");
+    var periodEl = document.getElementById("printPeriod");
     var dateEl = document.getElementById("printDate");
     if(!nameEl || !dateEl) return;
-    nameEl.textContent = currentLayoutName || "제목 없는 배치";
+    var docTitle = (state.classroom.docTitle || "").trim();
+    nameEl.textContent = docTitle || currentLayoutName || "제목 없는 배치";
+
+    if(periodEl){
+      var start = state.classroom.periodStart;
+      var end = state.classroom.periodEnd;
+      if(start && end) periodEl.textContent = formatPeriodDate(start) + " ~ " + formatPeriodDate(end) + " 적용";
+      else if(start) periodEl.textContent = formatPeriodDate(start) + " ~ 적용";
+      else if(end) periodEl.textContent = "~ " + formatPeriodDate(end) + " 적용";
+      else periodEl.textContent = "";
+    }
     dateEl.textContent = new Date().toLocaleDateString("ko-KR");
   }
 
@@ -978,6 +1023,13 @@
     document.getElementById("inputRows").value = state.classroom.rows;
     document.getElementById("inputCols").value = state.classroom.cols;
     document.getElementById("inputPaired").checked = !!state.classroom.paired;
+
+    var docTitleEl = document.getElementById("inputDocTitle");
+    var periodStartEl = document.getElementById("inputPeriodStart");
+    var periodEndEl = document.getElementById("inputPeriodEnd");
+    if(docTitleEl && document.activeElement !== docTitleEl) docTitleEl.value = state.classroom.docTitle || "";
+    if(periodStartEl && document.activeElement !== periodStartEl) periodStartEl.value = state.classroom.periodStart || "";
+    if(periodEndEl && document.activeElement !== periodEndEl) periodEndEl.value = state.classroom.periodEnd || "";
   }
 
   function renderStage(){
@@ -1004,6 +1056,7 @@
     canvas.style.width = layout.canvasWidth + "px";
     canvas.style.height = layout.canvasHeight + "px";
     canvas.style.setProperty("--canvas-w", layout.canvasWidth);
+    canvas.style.setProperty("--canvas-h", layout.canvasHeight);
 
     var podiumPos = state.classroom.podiumPosition || { x: layout.podiumDefaultX, y: layout.podiumDefaultY };
     var podiumEl = document.createElement("div");
@@ -1850,6 +1903,7 @@
     canvas.style.width = layout.canvasWidth + "px";
     canvas.style.height = layout.canvasHeight + "px";
     canvas.style.setProperty("--canvas-w", layout.canvasWidth);
+    canvas.style.setProperty("--canvas-h", layout.canvasHeight);
 
     // 직접 옮긴 적 없는(커스텀 위치가 없는) 책상만 새 격자 위치로 즉시 반영
     var deskPositions = state.classroom.deskPositions || {};
@@ -1960,6 +2014,22 @@
       document.getElementById("inputCols").value,
       document.getElementById("inputPaired").checked
     );
+  });
+
+  document.getElementById("inputDocTitle").addEventListener("input", function(){
+    state.classroom.docTitle = this.value;
+    renderPrintHeader();
+    saveState();
+  });
+  document.getElementById("inputPeriodStart").addEventListener("change", function(){
+    state.classroom.periodStart = this.value;
+    renderPrintHeader();
+    saveState();
+  });
+  document.getElementById("inputPeriodEnd").addEventListener("change", function(){
+    state.classroom.periodEnd = this.value;
+    renderPrintHeader();
+    saveState();
   });
 
   document.getElementById("btnAutoFill").addEventListener("click", autoFill);
