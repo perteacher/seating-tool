@@ -87,7 +87,10 @@
   .btn-plain{ background: var(--paper-raised); color: var(--ink); border-color: var(--line-strong); }
   .btn-plain:hover{ background: #FBFAF7; }
   .btn-danger{ background: var(--warn-soft); color: var(--warn); border-color: #E3B7AA; }
+  .btn-danger-ghost{ background: transparent; color: #E7B3A4; border-color: rgba(231,179,164,0.45); }
+  .btn-danger-ghost:hover{ background: rgba(181,72,47,0.18); border-color: rgba(231,179,164,0.7); }
   .btn-small{ padding: 5px 10px; font-size: 0.78rem; border-radius: 7px; }
+  .toolbar-divider{ width: 1px; align-self: stretch; background: rgba(255,255,255,0.16); margin: 2px 4px; }
 
   /* ---------- 레이아웃 ---------- */
   .layout{
@@ -105,6 +108,20 @@
   section.stage{
     padding: 24px;
     overflow: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  section.stage .warn-banner,
+  section.stage .stage-hint,
+  section.stage .print-only-header{
+    align-self: stretch;
+    max-width: 100%;
+  }
+  #stageContent{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
   aside.roster h2, section.stage h2{
@@ -118,6 +135,7 @@
     border-bottom: 1px dashed var(--line-strong);
   }
   .panel-block:last-child{ border-bottom: none; }
+  #constraintsBody.panel-hidden{ display: none; }
 
   textarea#pasteInput{
     width: 100%;
@@ -198,6 +216,37 @@
   .seat-grid.edit-mode{
     outline: 2px dashed var(--wood);
     outline-offset: 4px;
+  }
+  #stageCanvasWrap{ position: relative; }
+  .resize-handle{
+    position: absolute;
+    background: var(--wood);
+    border: 2px solid var(--paper-raised);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    z-index: 15;
+    touch-action: none;
+  }
+  .resize-handle:hover{ filter: brightness(1.08); }
+  .resize-handle.handle-right{
+    width: 14px; height: 64px;
+    right: -20px; top: 50%;
+    transform: translateY(-50%);
+    cursor: ew-resize;
+  }
+  .resize-handle.handle-bottom{
+    width: 64px; height: 14px;
+    bottom: -20px; left: 50%;
+    transform: translateX(-50%);
+    cursor: ns-resize;
+  }
+  .resize-handle.dragging-resize{ filter: brightness(1.15); }
+  .resize-hint{
+    position: absolute;
+    left: 0; right: 0; bottom: -44px;
+    text-align: center;
+    font-size: 0.76rem;
+    color: var(--ink-soft);
   }
   .podium-marker{
     position: absolute;
@@ -369,11 +418,11 @@
       box-shadow: none;
       background: none;
       transform-origin: top left;
-      transform: scale(min(1, calc(1030px / var(--canvas-w, 1030))));
+      transform: scale(min(1, calc(1030 / var(--canvas-w, 1030))));
     }
     .seat-grid.mirrored-view{
       transform-origin: center center;
-      transform: rotate(180deg) scale(min(1, calc(1030px / var(--canvas-w, 1030))));
+      transform: rotate(180deg) scale(min(1, calc(1030 / var(--canvas-w, 1030))));
     }
   }
 </style>
@@ -384,13 +433,14 @@
   <h1>교실 자리 배치 도구 <span class="sub">Seating Planner</span></h1>
   <div class="toolbar-actions">
     <button class="btn btn-ghost" id="btnAutoFill">자동 채우기</button>
-    <button class="btn btn-ghost" id="btnShuffle">랜덤 배치</button>
+    <button class="btn btn-primary" id="btnShuffle">랜덤 배치</button>
     <button class="btn btn-ghost" id="btnEditDeskLayout">책상 배치 편집</button>
     <button class="btn btn-ghost btn-small" id="btnResetDeskLayout" title="책상/교탁 위치를 기본 배열로 되돌립니다">배치 초기화</button>
-    <button class="btn btn-ghost" id="btnClearAll">전체 지우기</button>
+    <span class="toolbar-divider" aria-hidden="true"></span>
     <button class="btn btn-ghost" id="btnSaveLayout">저장</button>
     <button class="btn btn-ghost" id="viewDirectionToggle">학생 시점으로 보기</button>
     <button class="btn btn-ghost" id="btnPrint">인쇄</button>
+    <button class="btn btn-danger-ghost" id="btnClearAll">전체 지우기</button>
   </div>
 </header>
 
@@ -443,6 +493,7 @@
           <input type="checkbox" id="inputPaired">
           <label for="inputPaired" style="color:inherit;">2명씩 짝 묶기(분단 사이 통로)</label>
         </div>
+        <div class="hint" style="grid-column:1 / -1; margin:0;">교실 크기(여유 공간)는 '책상 배치 편집' 모드에서 캔버스 가장자리를 드래그해 조절하세요.</div>
         <div class="apply-row">
           <button class="btn btn-plain" id="btnApplyClassroom" style="width:100%;">교실 설정 적용</button>
         </div>
@@ -455,7 +506,10 @@
     </div>
 
     <div class="panel-block">
-      <h2>제약 조건(고급)</h2>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <h2 style="margin-bottom:0;">제약 조건(고급)</h2>
+        <button class="btn btn-plain btn-small" id="btnToggleConstraintsPanel">숨기기</button>
+      </div>
       <div class="check-row" style="margin-bottom:8px;">
         <input type="checkbox" id="inputUseConstraints">
         <label for="inputUseConstraints" style="color:inherit;">고급 제약 조건 사용</label>
@@ -472,6 +526,15 @@
           <button class="btn btn-plain btn-small" id="btnAddKeepApart">추가</button>
         </div>
         <ul id="keepApartList" class="saved-layout-list" style="margin-top:8px;"></ul>
+
+        <div class="hint" style="margin:14px 0 6px;">지정 좌석(학생 몰래 고정) — 랜덤 배치해도 이 학생은 지정한 자리에 배치됩니다.</div>
+        <div class="add-row">
+          <select id="fixedSeatStudentSelect" style="flex:1.4; border:1px solid var(--line-strong); border-radius:7px; padding:6px 8px; font-size:0.85rem;"></select>
+          <select id="fixedSeatRowSelect" style="flex:1; border:1px solid var(--line-strong); border-radius:7px; padding:6px 8px; font-size:0.85rem;"></select>
+          <select id="fixedSeatColSelect" style="flex:1; border:1px solid var(--line-strong); border-radius:7px; padding:6px 8px; font-size:0.85rem;"></select>
+          <button class="btn btn-plain btn-small" id="btnAddFixedSeat">추가</button>
+        </div>
+        <ul id="fixedSeatList" class="saved-layout-list" style="margin-top:8px;"></ul>
       </div>
     </div>
   </aside>
@@ -496,9 +559,9 @@
 
   var state = {
     students: [],
-    classroom: { rows: 5, cols: 6, paired: false, frontLabel: "칠판/교탁", viewFromTeacher: true, useConstraints: false, showGenderColor: false, deskPositions: {}, podiumPosition: null },
+    classroom: { rows: 5, cols: 6, paired: false, frontLabel: "칠판/교탁", viewFromTeacher: true, useConstraints: false, showGenderColor: false, deskPositions: {}, podiumPosition: null, extraWidth: 0, extraHeight: 0, constraintsPanelHidden: false },
     seatMap: {},
-    constraints: { keepApart: [] },
+    constraints: { keepApart: [], fixedSeats: [] },
     savedLayouts: []
   };
 
@@ -508,16 +571,19 @@
   var CELL_W = 108, CELL_H = 78, GAP = 10, PAIR_EXTRA = 18, PAD = 18;
   var PODIUM_W = 170, PODIUM_H = 42, PODIUM_GAP = 16;
 
-  function computeCanvasLayout(rows, cols, paired){
+  function computeCanvasLayout(rows, cols, paired, extraW, extraH){
+    extraW = Math.max(0, extraW || 0);
+    extraH = Math.max(0, extraH || 0);
+    var leftPad = PAD + extraW / 2;
     var colX = [];
-    var x = PAD;
+    var x = leftPad;
     for(var c=0;c<cols;c++){
       colX.push(x);
       var extra = (paired && cols > 2 && (c % 2 === 1) && c < cols - 1) ? PAIR_EXTRA : 0;
       x += CELL_W + GAP + extra;
     }
-    var gridContentWidth = (colX[cols - 1] + CELL_W) - PAD;
-    var canvasWidth = colX[cols - 1] + CELL_W + PAD;
+    var gridContentWidth = (colX[cols - 1] + CELL_W) - leftPad;
+    var canvasWidth = colX[cols - 1] + CELL_W + PAD + extraW / 2;
 
     var rowTop = PAD + PODIUM_H + PODIUM_GAP;
     var rowY = [];
@@ -526,14 +592,15 @@
       rowY.push(y);
       y += CELL_H + GAP;
     }
-    var canvasHeight = rowY[rows - 1] + CELL_H + PAD;
+    var canvasHeight = rowY[rows - 1] + CELL_H + PAD + extraH;
 
     return {
       colX: colX,
       rowY: rowY,
       canvasWidth: canvasWidth,
       canvasHeight: canvasHeight,
-      podiumDefaultX: PAD + (gridContentWidth - PODIUM_W) / 2,
+      // 좌우 여유 공간을 균등 분배했기 때문에 그리드 중심 = 캔버스 중심이 되어 칠판이 항상 가운데에 옴
+      podiumDefaultX: leftPad + (gridContentWidth - PODIUM_W) / 2,
       podiumDefaultY: PAD
     };
   }
@@ -558,7 +625,9 @@
         state.students = Array.isArray(parsed.students) ? parsed.students : [];
         state.classroom = Object.assign(state.classroom, parsed.classroom || {});
         state.seatMap = parsed.seatMap && typeof parsed.seatMap === "object" ? parsed.seatMap : {};
-        state.constraints = parsed.constraints && typeof parsed.constraints === "object" ? parsed.constraints : { keepApart: [] };
+        state.constraints = parsed.constraints && typeof parsed.constraints === "object" ? parsed.constraints : { keepApart: [], fixedSeats: [] };
+        if(!Array.isArray(state.constraints.keepApart)) state.constraints.keepApart = [];
+        if(!Array.isArray(state.constraints.fixedSeats)) state.constraints.fixedSeats = [];
         state.savedLayouts = Array.isArray(parsed.savedLayouts) ? parsed.savedLayouts : [];
         var maxNum = 0;
         state.students.forEach(function(s){
@@ -618,11 +687,17 @@
     var selB = document.getElementById("keepApartSelectB");
     var addBtn = document.getElementById("btnAddKeepApart");
     var listEl = document.getElementById("keepApartList");
+    var toggleBtn = document.getElementById("btnToggleConstraintsPanel");
     if(!useEl || !bodyEl) return;
 
     var useConstraints = !!state.classroom.useConstraints;
     useEl.checked = useConstraints;
     genderEl.checked = !!state.classroom.showGenderColor;
+
+    var panelHidden = !!state.classroom.constraintsPanelHidden;
+    bodyEl.classList.toggle("panel-hidden", panelHidden);
+    if(toggleBtn) toggleBtn.textContent = panelHidden ? "보이기" : "숨기기";
+
     bodyEl.style.opacity = useConstraints ? "1" : "0.45";
     bodyEl.querySelectorAll("input, select, button").forEach(function(el){
       el.disabled = !useConstraints;
@@ -676,6 +751,80 @@
 
         listEl.appendChild(li);
       });
+    }
+
+    // ---- 지정 좌석(비공개 고정 배치) ----
+    var fsStudentSel = document.getElementById("fixedSeatStudentSelect");
+    var fsRowSel = document.getElementById("fixedSeatRowSelect");
+    var fsColSel = document.getElementById("fixedSeatColSelect");
+    var fsAddBtn = document.getElementById("btnAddFixedSeat");
+    var fsListEl = document.getElementById("fixedSeatList");
+
+    if(fsStudentSel && fsRowSel && fsColSel && fsListEl){
+      var prevFsStudent = fsStudentSel.value;
+      fsStudentSel.innerHTML = "";
+      state.students.forEach(function(s){
+        var o = document.createElement("option");
+        o.value = s.id; o.textContent = s.name;
+        fsStudentSel.appendChild(o);
+      });
+      if(prevFsStudent && studentById(prevFsStudent)) fsStudentSel.value = prevFsStudent;
+
+      var rows = state.classroom.rows || 0;
+      var cols = state.classroom.cols || 0;
+      var prevFsRow = fsRowSel.value, prevFsCol = fsColSel.value;
+      fsRowSel.innerHTML = "";
+      for(var r=0;r<rows;r++){
+        var oR = document.createElement("option");
+        oR.value = r; oR.textContent = (r+1) + "행";
+        fsRowSel.appendChild(oR);
+      }
+      fsColSel.innerHTML = "";
+      for(var c=0;c<cols;c++){
+        var oC = document.createElement("option");
+        oC.value = c; oC.textContent = (c+1) + "열";
+        fsColSel.appendChild(oC);
+      }
+      if(prevFsRow !== "" && Number(prevFsRow) < rows) fsRowSel.value = prevFsRow;
+      if(prevFsCol !== "" && Number(prevFsCol) < cols) fsColSel.value = prevFsCol;
+
+      if(fsAddBtn) fsAddBtn.disabled = !useConstraints || !state.students.length || !rows || !cols;
+
+      fsListEl.innerHTML = "";
+      var fixedSeats = state.constraints.fixedSeats || [];
+      if(!fixedSeats.length){
+        var fli0 = document.createElement("li");
+        fli0.className = "empty-hint";
+        fli0.textContent = "지정된 좌석이 없습니다.";
+        fsListEl.appendChild(fli0);
+      }else{
+        fixedSeats.forEach(function(f, idx){
+          var st = studentById(f.studentId);
+          var parts = (f.seatKey || "0,0").split(",");
+          var rLabel = (parseInt(parts[0],10) + 1) + "행";
+          var cLabel = (parseInt(parts[1],10) + 1) + "열";
+
+          var fli = document.createElement("li");
+          fli.className = "saved-layout-item";
+
+          var finfo = document.createElement("div");
+          finfo.className = "info";
+          var fname = document.createElement("span");
+          fname.className = "n";
+          fname.textContent = (st ? st.name : "?") + " → " + rLabel + " " + cLabel;
+          finfo.appendChild(fname);
+          fli.appendChild(finfo);
+
+          var fdel = document.createElement("button");
+          fdel.className = "del";
+          fdel.setAttribute("data-del-fixedseat", idx);
+          fdel.title = "삭제";
+          fdel.textContent = "✕";
+          fli.appendChild(fdel);
+
+          fsListEl.appendChild(fli);
+        });
+      }
     }
   }
 
@@ -847,7 +996,7 @@
     var rows = state.classroom.rows;
     var cols = state.classroom.cols;
     var paired = state.classroom.paired;
-    var layout = computeCanvasLayout(rows, cols, paired);
+    var layout = computeCanvasLayout(rows, cols, paired, state.classroom.extraWidth, state.classroom.extraHeight);
 
     var canvas = document.createElement("div");
     canvas.id = "stageCanvas";
@@ -910,7 +1059,33 @@
       noStudentHint.textContent = "명단을 붙여넣으면 이 자리에 표시됩니다.";
       stage.appendChild(noStudentHint);
     }
-    stage.appendChild(canvas);
+
+    var wrapEl = document.createElement("div");
+    wrapEl.id = "stageCanvasWrap";
+    wrapEl.style.width = layout.canvasWidth + "px";
+    wrapEl.style.height = layout.canvasHeight + "px";
+    wrapEl.appendChild(canvas);
+
+    if(layoutEditMode){
+      var rightHandle = document.createElement("div");
+      rightHandle.className = "resize-handle handle-right";
+      rightHandle.id = "resizeHandleRight";
+      rightHandle.title = "드래그해서 교실 가로 폭 조절";
+      wrapEl.appendChild(rightHandle);
+
+      var bottomHandle = document.createElement("div");
+      bottomHandle.className = "resize-handle handle-bottom";
+      bottomHandle.id = "resizeHandleBottom";
+      bottomHandle.title = "드래그해서 교실 세로 길이 조절";
+      wrapEl.appendChild(bottomHandle);
+
+      var editHint = document.createElement("div");
+      editHint.className = "resize-hint";
+      editHint.textContent = "가장자리의 손잡이를 드래그하면 교실 크기가 바뀝니다";
+      wrapEl.appendChild(editHint);
+    }
+
+    stage.appendChild(wrapEl);
 
     var unseated = state.students.length - Object.keys(seatedStudentIds()).length;
     if(state.students.length > totalSeats()){
@@ -1037,6 +1212,33 @@
     renderAll();
   }
 
+  // ---------- 지정 좌석(비공개 고정 배치) ----------
+  function addFixedSeat(){
+    var studentSel = document.getElementById("fixedSeatStudentSelect");
+    var rowSel = document.getElementById("fixedSeatRowSelect");
+    var colSel = document.getElementById("fixedSeatColSelect");
+    if(!studentSel || !rowSel || !colSel) return;
+    var studentId = studentSel.value;
+    var row = parseInt(rowSel.value, 10);
+    var col = parseInt(colSel.value, 10);
+    if(!studentId || isNaN(row) || isNaN(col)) return;
+    var seatKey = row + "," + col;
+
+    if(!state.constraints.fixedSeats) state.constraints.fixedSeats = [];
+    // 같은 학생 또는 같은 좌석에 대한 기존 지정이 있으면 교체
+    state.constraints.fixedSeats = state.constraints.fixedSeats.filter(function(f){
+      return f.studentId !== studentId && f.seatKey !== seatKey;
+    });
+    state.constraints.fixedSeats.push({ studentId: studentId, seatKey: seatKey });
+    renderAll();
+  }
+
+  function removeFixedSeat(idx){
+    if(!state.constraints.fixedSeats) return;
+    state.constraints.fixedSeats.splice(idx, 1);
+    renderAll();
+  }
+
   function isAdjacent(seatKeyA, seatKeyB, cols){
     if(!seatKeyA || !seatKeyB) return false;
     var a = seatKeyA.split(",").map(Number);
@@ -1081,6 +1283,91 @@
     remainingSeatKeys.forEach(function(key, idx){
       state.seatMap[key] = idx < restIds.length ? restIds[idx] : null;
     });
+
+    return { frontSeatKeys: frontSeatKeys, remainingSeatKeys: remainingSeatKeys };
+  }
+
+  // ---------- 궁합회피 국소탐색(local search) 보강 ----------
+  function buildPosMap(){
+    var pos = {};
+    Object.keys(state.seatMap).forEach(function(key){
+      var sid = state.seatMap[key];
+      if(sid) pos[sid] = key;
+    });
+    return pos;
+  }
+
+  function countViolationsFromPos(pos, cols){
+    var pairs = state.constraints.keepApart || [];
+    var count = 0;
+    pairs.forEach(function(pair){
+      if(isAdjacent(pos[pair[0]], pos[pair[1]], cols)) count++;
+    });
+    return count;
+  }
+
+  // seatKeysPool 안에서만 스왑하며 위반 개수를 줄여나감(같은 풀 안에서만 움직이므로
+  // needFront처럼 다른 제약으로 나눠둔 좌석군을 침범하지 않음)
+  function repairPoolWithLocalSearch(seatKeysPool, cols, maxIterations){
+    if(seatKeysPool.length < 2) return countViolationsFromPos(buildPosMap(), cols);
+    var pos = buildPosMap();
+    var violationCount = countViolationsFromPos(pos, cols);
+    var stagnant = 0;
+
+    for(var iter = 0; iter < maxIterations && violationCount > 0; iter++){
+      var pairs = state.constraints.keepApart || [];
+      var violatingPairs = pairs.filter(function(p){
+        return isAdjacent(pos[p[0]], pos[p[1]], cols);
+      });
+      if(violatingPairs.length === 0) break;
+
+      var pair = violatingPairs[Math.floor(Math.random() * violatingPairs.length)];
+      var moveId = pair[Math.random() < 0.5 ? 0 : 1];
+      var moveSeatKey = pos[moveId];
+      if(!moveSeatKey || seatKeysPool.indexOf(moveSeatKey) === -1) continue;
+
+      var candidates = shuffleArray(seatKeysPool.slice());
+      var improved = false;
+
+      for(var ci = 0; ci < candidates.length; ci++){
+        var otherKey = candidates[ci];
+        if(otherKey === moveSeatKey) continue;
+        var otherId = state.seatMap[otherKey] || null;
+
+        state.seatMap[moveSeatKey] = otherId;
+        state.seatMap[otherKey] = moveId;
+        var newPos = buildPosMap();
+        var newCount = countViolationsFromPos(newPos, cols);
+
+        if(newCount < violationCount){
+          pos = newPos;
+          violationCount = newCount;
+          improved = true;
+          break;
+        }
+        // 개선 없으면 되돌리기
+        state.seatMap[moveSeatKey] = moveId;
+        state.seatMap[otherKey] = otherId;
+      }
+
+      if(!improved){
+        stagnant++;
+        // 정체 상태 탈출용으로 몇 번에 한번은 무작위 스왑 허용(로컬 최적 탈출)
+        if(stagnant % 5 === 0){
+          var randKey = candidates[0];
+          if(randKey && randKey !== moveSeatKey){
+            var rId = state.seatMap[randKey] || null;
+            state.seatMap[moveSeatKey] = rId;
+            state.seatMap[randKey] = moveId;
+            pos = buildPosMap();
+            violationCount = countViolationsFromPos(pos, cols);
+          }
+        }
+      } else {
+        stagnant = 0;
+      }
+    }
+    return violationCount;
   }
 
   function findKeepApartViolations(cols){
@@ -1104,6 +1391,8 @@
     var rows = state.classroom.rows, cols = state.classroom.cols;
     if(!rows || !cols) return;
 
+    var useConstraints = !!state.classroom.useConstraints;
+
     var lockedSeatKeys = {};
     Object.keys(state.seatMap).forEach(function(key){
       var sid = state.seatMap[key];
@@ -1111,10 +1400,29 @@
       if(st && st.locked) lockedSeatKeys[key] = true;
     });
 
+    // 지정 좌석(비공개 고정 배치): 고급 제약 조건 사용 시에만 적용.
+    // 잠금(자물쇠)과 달리 화면에 아무 표시도 남기지 않음.
+    var fixedAssignments = {}; // seatKey -> studentId
+    var fixedStudentIds = {};
+    if(useConstraints){
+      (state.constraints.fixedSeats || []).forEach(function(f){
+        var st = studentById(f.studentId);
+        if(!st || st.locked) return; // 이미 잠금된 학생은 제외(충돌 방지)
+        var parts = (f.seatKey || "").split(",");
+        var r = parseInt(parts[0], 10), c = parseInt(parts[1], 10);
+        if(isNaN(r) || isNaN(c) || r >= rows || c >= cols) return; // 교실 크기 벗어나면 무시
+        if(lockedSeatKeys[f.seatKey]) return; // 잠긴 좌석과 충돌하면 무시
+        if(fixedAssignments[f.seatKey] || fixedStudentIds[f.studentId]) return; // 중복 지정 방지
+        fixedAssignments[f.seatKey] = f.studentId;
+        fixedStudentIds[f.studentId] = true;
+      });
+    }
+
     var seated = seatedStudentIds();
     var movableStudentIds = [];
     state.students.forEach(function(s){
       if(s.locked) return;
+      if(fixedStudentIds[s.id]) return;
       movableStudentIds.push(s.id);
     });
 
@@ -1122,23 +1430,48 @@
     for(var r=0;r<rows;r++){
       for(var c=0;c<cols;c++){
         var key = r + "," + c;
-        if(!lockedSeatKeys[key]) openSeatKeys.push(key);
+        if(lockedSeatKeys[key]) continue;
+        if(fixedAssignments[key]){
+          state.seatMap[key] = fixedAssignments[key];
+          continue;
+        }
+        openSeatKeys.push(key);
       }
     }
 
-    var useConstraints = !!state.classroom.useConstraints;
     var violations = [];
 
     if(!useConstraints){
       assignSeatsRandomly(movableStudentIds, openSeatKeys);
     }else{
-      var maxTries = 30;
-      var tryCount = 0;
-      do{
-        assignSeatsWithConstraints(movableStudentIds, openSeatKeys);
-        violations = findKeepApartViolations(cols);
-        tryCount++;
-      }while(violations.length > 0 && tryCount < maxTries);
+      // 1단계: 여러 번 랜덤 배치해보고 그 중 위반이 가장 적은 결과를 채택
+      var bestSeatMap = null;
+      var bestPartition = null;
+      var bestCount = Infinity;
+      var attempts = 20;
+      for(var a = 0; a < attempts && bestCount > 0; a++){
+        var partition = assignSeatsWithConstraints(movableStudentIds, openSeatKeys);
+        var count = findKeepApartViolations(cols).length;
+        if(count < bestCount){
+          bestCount = count;
+          bestPartition = partition;
+          bestSeatMap = JSON.parse(JSON.stringify(state.seatMap));
+        }
+      }
+      state.seatMap = bestSeatMap;
+
+      // 2단계: 남은 위반은 국소탐색(스왑)으로 보강. needFront 제약을 안 깨뜨리도록
+      // 앞자리 풀과 나머지 풀을 각각 따로 탐색
+      if(bestCount > 0 && bestPartition){
+        if(bestPartition.frontSeatKeys.length > 1){
+          repairPoolWithLocalSearch(bestPartition.frontSeatKeys, cols, 200);
+        }
+        if(bestPartition.remainingSeatKeys.length > 1){
+          repairPoolWithLocalSearch(bestPartition.remainingSeatKeys, cols, 200);
+        }
+      }
+
+      violations = findKeepApartViolations(cols);
     }
 
     var capacityMsg = "";
@@ -1204,7 +1537,9 @@
     state.students = JSON.parse(JSON.stringify(snap.students || []));
     state.classroom = JSON.parse(JSON.stringify(snap.classroom || state.classroom));
     state.seatMap = JSON.parse(JSON.stringify(snap.seatMap || {}));
-    state.constraints = JSON.parse(JSON.stringify(snap.constraints || { keepApart: [] }));
+    state.constraints = JSON.parse(JSON.stringify(snap.constraints || { keepApart: [], fixedSeats: [] }));
+    if(!Array.isArray(state.constraints.keepApart)) state.constraints.keepApart = [];
+    if(!Array.isArray(state.constraints.fixedSeats)) state.constraints.fixedSeats = [];
     currentLayoutName = layout.name;
     renderAll();
   }
@@ -1218,7 +1553,7 @@
     if(!confirm("정말 전체 명단과 자리 배치를 지우시겠습니까? 되돌릴 수 없습니다.")) return;
     state.students = [];
     state.seatMap = {};
-    state.constraints = { keepApart: [] };
+    state.constraints = { keepApart: [], fixedSeats: [] };
     renderAll();
   }
 
@@ -1479,16 +1814,114 @@
     saveState();
   }
 
+  // ---------- 교실 크기 리사이즈(가장자리 손잡이 드래그) ----------
+  var resizeDragState = null;
+  var RESIZE_MAX = 1000;
+
+  function getWrapEl(){ return document.getElementById("stageCanvasWrap"); }
+
+  function startResizeDrag(e, handleEl, axis){
+    e.preventDefault();
+    resizeDragState = {
+      axis: axis, // "width" | "height"
+      el: handleEl,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startExtraWidth: state.classroom.extraWidth || 0,
+      startExtraHeight: state.classroom.extraHeight || 0,
+      pendingWidth: state.classroom.extraWidth || 0,
+      pendingHeight: state.classroom.extraHeight || 0,
+      rows: state.classroom.rows,
+      cols: state.classroom.cols,
+      paired: state.classroom.paired
+    };
+    handleEl.classList.add("dragging-resize");
+    try{ handleEl.setPointerCapture(e.pointerId); }catch(err){ /* 캡처 실패 시 그냥 진행 */ }
+  }
+
+  function applyLiveResize(newExtraWidth, newExtraHeight){
+    var wrap = getWrapEl();
+    var canvas = getCanvasEl();
+    if(!wrap || !canvas) return;
+    var layout = computeCanvasLayout(resizeDragState.rows, resizeDragState.cols, resizeDragState.paired, newExtraWidth, newExtraHeight);
+
+    wrap.style.width = layout.canvasWidth + "px";
+    wrap.style.height = layout.canvasHeight + "px";
+    canvas.style.width = layout.canvasWidth + "px";
+    canvas.style.height = layout.canvasHeight + "px";
+    canvas.style.setProperty("--canvas-w", layout.canvasWidth);
+
+    // 직접 옮긴 적 없는(커스텀 위치가 없는) 책상만 새 격자 위치로 즉시 반영
+    var deskPositions = state.classroom.deskPositions || {};
+    for(var r=0;r<resizeDragState.rows;r++){
+      for(var c=0;c<resizeDragState.cols;c++){
+        var key = r + "," + c;
+        if(deskPositions[key]) continue;
+        var seatEl = canvas.querySelector('[data-seat="' + key + '"]');
+        if(seatEl){
+          seatEl.style.left = layout.colX[c] + "px";
+          seatEl.style.top = layout.rowY[r] + "px";
+        }
+      }
+    }
+    // 칠판/교탁은 리사이즈 중에는 항상 가운데로 실시간 재배치
+    var podiumEl = document.getElementById("podiumMarker");
+    if(podiumEl){
+      podiumEl.style.left = layout.podiumDefaultX + "px";
+      podiumEl.style.top = layout.podiumDefaultY + "px";
+    }
+  }
+
+  function onResizePointerMove(e){
+    if(!resizeDragState) return;
+    var dx = e.clientX - resizeDragState.startClientX;
+    var dy = e.clientY - resizeDragState.startClientY;
+    var newExtraWidth = resizeDragState.startExtraWidth;
+    var newExtraHeight = resizeDragState.startExtraHeight;
+    if(resizeDragState.axis === "width"){
+      newExtraWidth = Math.max(0, Math.min(RESIZE_MAX, resizeDragState.startExtraWidth + dx));
+    }else if(resizeDragState.axis === "height"){
+      newExtraHeight = Math.max(0, Math.min(RESIZE_MAX, resizeDragState.startExtraHeight + dy));
+    }
+    resizeDragState.pendingWidth = newExtraWidth;
+    resizeDragState.pendingHeight = newExtraHeight;
+    applyLiveResize(newExtraWidth, newExtraHeight);
+  }
+
+  function onResizePointerUp(e){
+    if(!resizeDragState) return;
+    state.classroom.extraWidth = resizeDragState.pendingWidth;
+    state.classroom.extraHeight = resizeDragState.pendingHeight;
+    // 리사이즈를 한 번이라도 하면 칠판/교탁 위치를 가운데 기준으로 재설정
+    state.classroom.podiumPosition = null;
+    resizeDragState.el.classList.remove("dragging-resize");
+    resizeDragState = null;
+    renderAll();
+  }
+
   stageEl.addEventListener("pointerdown", function(e){
     if(!layoutEditMode) return;
+    var rightHandle = e.target.closest("#resizeHandleRight");
+    var bottomHandle = e.target.closest("#resizeHandleBottom");
+    if(rightHandle){ startResizeDrag(e, rightHandle, "width"); return; }
+    if(bottomHandle){ startResizeDrag(e, bottomHandle, "height"); return; }
     var seat = e.target.closest(".seat");
     var podium = e.target.closest(".podium-marker");
     if(seat){ startDeskDrag(e, seat, "seat", seat.getAttribute("data-seat")); }
     else if(podium){ startDeskDrag(e, podium, "podium", null); }
   });
-  stageEl.addEventListener("pointermove", onDeskPointerMove);
-  stageEl.addEventListener("pointerup", onDeskPointerUp);
-  stageEl.addEventListener("pointercancel", onDeskPointerUp);
+  stageEl.addEventListener("pointermove", function(e){
+    if(resizeDragState){ onResizePointerMove(e); return; }
+    onDeskPointerMove(e);
+  });
+  stageEl.addEventListener("pointerup", function(e){
+    if(resizeDragState){ onResizePointerUp(e); return; }
+    onDeskPointerUp(e);
+  });
+  stageEl.addEventListener("pointercancel", function(e){
+    if(resizeDragState){ onResizePointerUp(e); return; }
+    onDeskPointerUp(e);
+  });
 
   // ---------- 이벤트 바인딩 ----------
   document.getElementById("btnPasteAdd").addEventListener("click", function(){
@@ -1553,9 +1986,11 @@
   });
 
   document.getElementById("btnResetDeskLayout").addEventListener("click", function(){
-    if(!confirm("책상과 교탁 위치를 기본 배열로 되돌리시겠습니까?")) return;
+    if(!confirm("책상과 교탁 위치, 교실 크기를 기본값으로 되돌리시겠습니까?")) return;
     state.classroom.deskPositions = {};
     state.classroom.podiumPosition = null;
+    state.classroom.extraWidth = 0;
+    state.classroom.extraHeight = 0;
     renderAll();
   });
 
@@ -1574,6 +2009,20 @@
 
     var delKeepApartBtn = e.target.closest("[data-del-keepapart]");
     if(delKeepApartBtn){ removeKeepApartPair(parseInt(delKeepApartBtn.getAttribute("data-del-keepapart"), 10)); return; }
+
+    var addFixedSeatBtn = e.target.closest("#btnAddFixedSeat");
+    if(addFixedSeatBtn){ addFixedSeat(); return; }
+
+    var delFixedSeatBtn = e.target.closest("[data-del-fixedseat]");
+    if(delFixedSeatBtn){ removeFixedSeat(parseInt(delFixedSeatBtn.getAttribute("data-del-fixedseat"), 10)); return; }
+
+    var toggleConstraintsBtn = e.target.closest("#btnToggleConstraintsPanel");
+    if(toggleConstraintsBtn){
+      state.classroom.constraintsPanelHidden = !state.classroom.constraintsPanelHidden;
+      renderConstraintsPanel();
+      saveState();
+      return;
+    }
   });
 
   rosterEl.addEventListener("change", function(e){
